@@ -1,0 +1,15 @@
+[project]
+name = "ppc-project"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ipykernel>=7.2.0",
+    "matplotlib>=3.10.9",
+    "nbconvert>=7.17.1",
+    "nbformat>=5.10.4",
+    "numpy>=2.4.4",
+    "pypblib>=0.0.4",
+    "python-sat>=1.9.dev2",
+]
