@@ -9,6 +9,7 @@ P = [ 0, 16, 32, 48,  1, 17, 33, 49,  2, 18, 34, 50,  3, 19, 35, 51,
 
 
 def generate_round_keys(key):
+    """Generate the 32 PRESENT round keys from an 80-bit master key."""
     keys = [key]
     k = key
     for i in range(1, 32):
@@ -21,10 +22,12 @@ def generate_round_keys(key):
 
 
 def add_round_key(state, key):
+    """XOR the 64-bit state with the top 64 bits of the round key."""
     return state ^ (key >> 16)
 
 
 def sbox_layer(state):
+    """Apply the PRESENT S-box to all 16 nibbles of the 64-bit state."""
     result = 0
     for i in range(16):
         result |= SBOX[(state >> (4 * i)) & 0xf] << (4 * i)
@@ -32,6 +35,7 @@ def sbox_layer(state):
 
 
 def p_layer(state):
+    """Apply the PRESENT bit permutation to the 64-bit state."""
     result = 0
     for i in range(64):
         result |= ((state >> i) & 1) << P[i]
@@ -39,6 +43,7 @@ def p_layer(state):
 
 
 def encrypt(plaintext, keys):
+    """Encrypt a 64-bit plaintext using PRESENT with precomputed round keys."""
     state = plaintext
     for i in range(31):
         state = add_round_key(state, keys[i])
@@ -48,6 +53,7 @@ def encrypt(plaintext, keys):
 
 
 def build_ddt(sbox):
+    """Build the Difference Distribution Table for the given S-box."""
     n = len(sbox)
     ddt = np.zeros((n, n), dtype=int)
     for a in range(n):
@@ -60,6 +66,7 @@ DDT = build_ddt(SBOX)
 
 
 def validate_trail(deltas, R):
+    """Check that a differential trail is compatible with the DDT for all R rounds."""
     for r in range(R):
         din, dout = deltas[r], deltas[r + 1]
         for s in range(16):

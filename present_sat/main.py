@@ -7,12 +7,14 @@ from .search import find_min_active, find_min_weight_fast
 
 
 def run_r(r):
+    """Run the min-weight search for R rounds and return (r, weight, elapsed_seconds)."""
     t0 = time.time()
     w = find_min_weight_fast(r)
     return r, w, time.time() - t0
 
 
 def main():
+    """CLI entry point: search min-weight differential trails up to --rmax rounds in parallel."""
     parser = argparse.ArgumentParser(description='PRESENT min-weight differential trail search')
     parser.add_argument('--rmax', type=int, default=10)
     args = parser.parse_args()

@@ -6,22 +6,31 @@ from .present import P, DDT
 
 
 def diff_var(r, i):
+    """Return the SAT variable for bit i of the difference word at round r."""
     return 1 + r * 64 + i
 
 
 def active_var(R, r, s):
+    """Return the SAT variable for the active flag of S-box s at round r."""
     return 1 + 64 * (R + 1) + r * 16 + s
 
 
 def w2_var(R, r, s):
+    """Return the SAT variable encoding a weight-2 contribution for S-box s at round r.
+
+    Shares the same index as active_var; in the weighted model an active S-box
+    contributes weight 2 unless w3_var forces the heavier branch.
+    """
     return 1 + 64 * (R + 1) + r * 16 + s
 
 
 def w3_var(R, r, s):
+    """Return the SAT variable encoding a weight-3 contribution for S-box s at round r."""
     return 1 + 64 * (R + 1) + R * 16 + r * 16 + s
 
 
 def forbid_assignment(x_vars, y_vars, x_val, y_val):
+    """Build a clause that forbids the specific (x_val, y_val) assignment on (x_vars, y_vars)."""
     clause = []
     for i, var in enumerate(x_vars):
         clause.append(-var if (x_val >> i) & 1 else var)
@@ -31,6 +40,7 @@ def forbid_assignment(x_vars, y_vars, x_val, y_val):
 
 
 def sbox_clauses(x_vars, y_vars, ddt):
+    """Return clauses ruling out all (input, output) pairs with zero DDT probability."""
     return [
         forbid_assignment(x_vars, y_vars, a, b)
         for a in range(16)
@@ -40,6 +50,7 @@ def sbox_clauses(x_vars, y_vars, ddt):
 
 
 def build_round(cnf, r):
+    """Add CNF clauses encoding the S-box and permutation layer for round r."""
     for s in range(16):
         x_vars = [diff_var(r,   4 * s + j) for j in range(4)]
         y_vars = [diff_var(r+1, P[4 * s + j]) for j in range(4)]
@@ -48,6 +59,7 @@ def build_round(cnf, r):
 
 
 def active_clauses(cnf, R, r, s):
+    """Add clauses linking active_var(r, s) to the non-zero condition on S-box s at round r."""
     a = active_var(R, r, s)
     x = [diff_var(r, 4 * s + j) for j in range(4)]
     cnf.append([-a] + x)
@@ -56,6 +68,7 @@ def active_clauses(cnf, R, r, s):
 
 
 def build_model(R):
+    """Build the base SAT model for an R-round PRESENT differential trail (active S-box count)."""
     cnf = CNF()
     for r in range(R):
         build_round(cnf, r)
@@ -66,6 +79,7 @@ def build_model(R):
 
 
 def weight_clauses(cnf, R, r, s):
+    """Add clauses that encode the differential weight (2 or 3) for S-box s at round r."""
     x_vars = [diff_var(r,   4 * s + j) for j in range(4)]
     y_vars = [diff_var(r+1, P[4 * s + j]) for j in range(4)]
     w2 = w2_var(R, r, s)
@@ -83,6 +97,7 @@ def weight_clauses(cnf, R, r, s):
 
 
 def build_weighted_model(R, W=None):
+    """Build the weighted SAT model for R rounds, optionally bounding total weight by W."""
     cnf = CNF()
     for r in range(R):
         build_round(cnf, r)

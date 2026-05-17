@@ -11,6 +11,7 @@ from .encoding import (
 
 
 def portfolio_solve(args):
+    """Solve a CNF instance with the specified solver; returns True if satisfiable."""
     from pysat.solvers import Cadical153, Glucose4, Glucose42
     clauses, solver_name = args
     cls = {'cadical153': Cadical153, 'glucose4': Glucose4, 'glucose42': Glucose42}[solver_name]
@@ -19,6 +20,7 @@ def portfolio_solve(args):
 
 
 def find_min_active(R):
+    """Find the minimum number of active S-boxes in any R-round PRESENT differential trail."""
     base = build_model(R)
     lits = [active_var(R, r, s) for r in range(R) for s in range(16)]
     with Cadical153(bootstrap_with=base.clauses) as solver:
@@ -41,6 +43,7 @@ def find_min_active(R):
 
 
 def find_min_weight_fast(R, W_max=None, n_portfolio=3):
+    """Find the minimum differential trail weight for R rounds using binary search and a solver portfolio."""
     min_k = find_min_active(R)
     lo = 2 * min_k
     hi = W_max if W_max is not None else 3 * min_k
