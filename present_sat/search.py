@@ -8,7 +8,12 @@ ACTIVE_BOUNDS: dict[int, int] = {1: 1, 2: 2, 3: 4, 4: 6, 5: 10, 6: 12, 7: 14, 8:
 
 
 def find_min_active(R: int, use_bounds: bool = False) -> int:
-    """Find the minimum number of active S-boxes in any R-round differential trail."""
+    """Find the minimum number of active S-boxes in any R-round differential trail.
+
+    Args:
+        R: number of rounds.
+        use_bounds: if True, adds precomputed prefix active-sbox bounds to speed up search.
+    """
     bounds = ACTIVE_BOUNDS if use_bounds else None
     base = build_model(R, active_bounds=bounds)
     lits = [active_var(R, r, s) for r in range(R) for s in range(16)]
@@ -38,6 +43,13 @@ def find_min_weight(R: int, W_max: int | None = None,
     Uses linear incremental search starting from 2*min_active, keeping the
     solver alive to reuse learned clauses between iterations.
     Weight per S-box = 2*active + heavy.
+
+    Args:
+        R: number of rounds.
+        W_max: optional upper bound for the search (defaults to 3*min_active).
+        use_bounds: if True, adds precomputed prefix active-sbox bounds.
+        weight_bounds: optional dict mapping round count k to min trail weight,
+                       used to add PC1/PC2 constraints to the model.
     """
     min_k = find_min_active(R, use_bounds=use_bounds)
     lo = 2 * min_k
@@ -61,12 +73,3 @@ def find_min_weight(R: int, W_max: int | None = None,
                 return W
 
     return hi
-
-
-def collect_weight_bounds(up_to: int, use_bounds: bool = False) -> dict[int, int]:
-    """Compute B[r] = min trail weight for r=1..up_to, each reusing prior results."""
-    B: dict[int, int] = {}
-    for r in range(1, up_to + 1):
-        B[r] = find_min_weight(r, use_bounds=use_bounds,
-                               weight_bounds=B if B else None)
-    return B

@@ -16,10 +16,14 @@ def _compute_pi_clauses(valid: set[int], invalid: set[int], nbits: int) -> list[
     Returns a list of clause templates. Each template is a list of
     (bit_index, is_positive) pairs encoding one prime implicant that
     covers only invalid minterms.
+
+    Args:
+        valid: set of valid minterms (must not be covered by any clause).
+        invalid: set of invalid minterms to cover.
+        nbits: number of bits in the boolean space.
     """
     mask_all = (1 << nbits) - 1
 
-    # Each implicant is (value, dont_care_mask)
     current: set[tuple[int, int]] = set()
     for v in invalid:
         current.add((v, 0))
@@ -36,12 +40,10 @@ def _compute_pi_clauses(valid: set[int], invalid: set[int], nbits: int) -> list[
                 if m1 != m2:
                     continue
                 diff = (v1 ^ v2) & ~m1 & mask_all
-                # diff must be exactly one bit
                 if diff == 0 or (diff & (diff - 1)) != 0:
                     continue
                 new_mask = (m1 | diff) & mask_all
                 new_val = v1 & ~diff & mask_all
-                # Make sure the merged implicant doesn't cover any valid minterm
                 covers_valid = False
                 for p in valid:
                     if (p & ~new_mask) == (new_val & ~new_mask):
@@ -56,7 +58,6 @@ def _compute_pi_clauses(valid: set[int], invalid: set[int], nbits: int) -> list[
                 prime_implicants.add(pi)
         current = merged
 
-    # For each prime implicant, find the invalid minterms it covers
     pi_coverage: list[tuple[tuple[int, int], set[int]]] = []
     for val, mask in prime_implicants:
         covered: set[int] = set()
@@ -65,7 +66,6 @@ def _compute_pi_clauses(valid: set[int], invalid: set[int], nbits: int) -> list[
                 covered.add(p)
         pi_coverage.append(((val, mask), covered))
 
-    # Greedy set cover: pick the implicant covering the most uncovered minterms
     uncovered = set(invalid)
     selected: list[tuple[int, int]] = []
     while uncovered:
@@ -75,12 +75,11 @@ def _compute_pi_clauses(valid: set[int], invalid: set[int], nbits: int) -> list[
         uncovered -= best_covered
         pi_coverage = [(pi, cov) for pi, cov in pi_coverage if cov & uncovered]
 
-    # Build clause templates from selected implicants
     clauses: list[ClauseTemplate] = []
     for val, mask in selected:
         clause: ClauseTemplate = []
         for i in range(nbits):
-            if not (mask >> i) & 1:  # bit i is not a don't-care
+            if not (mask >> i) & 1:
                 is_positive = not ((val >> i) & 1)
                 clause.append((i, is_positive))
         clauses.append(clause)
@@ -88,7 +87,11 @@ def _compute_pi_clauses(valid: set[int], invalid: set[int], nbits: int) -> list[
 
 
 def _compute_sbox_pi_clauses(ddt: Any) -> list[ClauseTemplate]:
-    """8-bit compact CNF covering all invalid (input, output) DDT pairs."""
+    """8-bit compact CNF covering all invalid (input, output) DDT pairs.
+
+    Args:
+        ddt: the S-box Difference Distribution Table (16x16 array).
+    """
     valid: set[int] = set()
     invalid: set[int] = set()
     for a in range(16):
@@ -110,14 +113,17 @@ def _compute_sbox_weight_pi_clauses(ddt: Any) -> list[ClauseTemplate]:
       - x=a, y=b, active=1, heavy=0  when DDT[a][b] = 4  (weight 2)
       - x=a, y=b, active=1, heavy=1  when DDT[a][b] = 2  (weight 3)
     Weight per S-box = 2*active + heavy.
+
+    Args:
+        ddt: the S-box Difference Distribution Table (16x16 array).
     """
-    valid: set[int] = {0}  # inactive S-box: all bits zero
+    valid: set[int] = {0}
     for a in range(1, 16):
         for b in range(16):
             if ddt[a][b] == 4:
-                valid.add(a | (b << 4) | (1 << 8))           # weight 2
+                valid.add(a | (b << 4) | (1 << 8))
             elif ddt[a][b] == 2:
-                valid.add(a | (b << 4) | (1 << 8) | (1 << 9))  # weight 3
+                valid.add(a | (b << 4) | (1 << 8) | (1 << 9))
     invalid: set[int] = set()
     for v in range(1 << 10):
         if v not in valid:
@@ -131,22 +137,44 @@ _SBOX_WEIGHT_TEMPLATES: list[ClauseTemplate] = _compute_sbox_weight_pi_clauses(D
 
 
 def diff_var(r: int, i: int) -> int:
-    """SAT variable for bit i of the difference word at round r."""
+    """SAT variable for bit i of the difference word at round r.
+
+    Args:
+        r: round index.
+        i: bit index (0-63).
+    """
     return 1 + r * 64 + i
 
 
 def active_var(R: int, r: int, s: int) -> int:
-    """SAT variable: S-box s at round r is active (non-zero input difference)."""
+    """SAT variable: S-box s at round r is active (non-zero input difference).
+
+    Args:
+        R: total number of rounds (used for variable numbering).
+        r: round index.
+        s: S-box index (0-15).
+    """
     return 1 + 64 * (R + 1) + r * 16 + s
 
 
 def heavy_var(R: int, r: int, s: int) -> int:
-    """SAT variable: S-box s at round r has a weight-3 transition (DDT value = 2)."""
+    """SAT variable: S-box s at round r has a weight-3 transition (DDT value = 2).
+
+    Args:
+        R: total number of rounds (used for variable numbering).
+        r: round index.
+        s: S-box index (0-15).
+    """
     return 1 + 64 * (R + 1) + R * 16 + r * 16 + s
 
 
 def sbox_clauses_compact(x_vars: list[int], y_vars: list[int]) -> list[list[int]]:
-    """Clauses ruling out all DDT-invalid (input, output) pairs for one S-box."""
+    """Clauses ruling out all DDT-invalid (input, output) pairs for one S-box.
+
+    Args:
+        x_vars: list of 4 SAT variables for the input nibble bits.
+        y_vars: list of 4 SAT variables for the output nibble bits.
+    """
     all_vars = x_vars + y_vars
     clauses: list[list[int]] = []
     for template in _SBOX_PI_TEMPLATES:
@@ -165,6 +193,12 @@ def sbox_weight_clauses_compact(x_vars: list[int], y_vars: list[int],
     act_var = 1 iff the S-box is active (input diff != 0).
     hvy_var = 1 iff the transition has weight 3 (DDT value = 2).
     Weight contribution = 2*act_var + hvy_var.
+
+    Args:
+        x_vars: list of 4 SAT variables for the input nibble bits.
+        y_vars: list of 4 SAT variables for the output nibble bits.
+        act_var: SAT variable for whether this S-box is active.
+        hvy_var: SAT variable for whether this S-box has a weight-3 transition.
     """
     all_vars = x_vars + y_vars + [act_var, hvy_var]
     clauses: list[list[int]] = []
@@ -178,18 +212,29 @@ def sbox_weight_clauses_compact(x_vars: list[int], y_vars: list[int],
 
 
 def _active_clauses(cnf: CNF, R: int, r: int, s: int) -> None:
-    """Add clauses linking active_var(r, s) to (input diff != 0) for S-box s."""
+    """Add clauses linking active_var(r, s) to (input diff != 0) for S-box s.
+
+    Args:
+        cnf: the CNF formula to extend.
+        R: total number of rounds (used for variable numbering).
+        r: round index.
+        s: S-box index (0-15).
+    """
     a = active_var(R, r, s)
     x_bits = [diff_var(r, 4 * s + j) for j in range(4)]
-    # active -> at least one input bit is 1
     cnf.append([-a] + x_bits)
-    # each input bit being 1 -> active
     for xi in x_bits:
         cnf.append([-xi, a])
 
 
 def build_model(R: int, active_bounds: dict[int, int] | None = None) -> CNF:
-    """Build a SAT model for R-round PRESENT differential trails (active S-box count)."""
+    """Build a SAT model for R-round PRESENT differential trails (active S-box count).
+
+    Args:
+        R: number of rounds.
+        active_bounds: optional dict mapping round count k to min active S-boxes,
+                       used to add a prefix lower-bound constraint.
+    """
     cnf = CNF()
     for r in range(R):
         for s in range(16):
@@ -198,10 +243,8 @@ def build_model(R: int, active_bounds: dict[int, int] | None = None) -> CNF:
             for clause in sbox_clauses_compact(x_vars, y_vars):
                 cnf.append(clause)
             _active_clauses(cnf, R, r, s)
-    # Input difference must be non-zero
     cnf.append([diff_var(0, i) for i in range(64)])
     if active_bounds:
-        # Find the tightest known active-sbox lower bound for a prefix of rounds
         best_k = 0
         best_bound = 0
         for k, bound in active_bounds.items():
@@ -223,6 +266,11 @@ def _weight_lits_weights(R: int, r_start: int, r_end: int) -> tuple[list[int], l
 
     Weight per S-box = 2*active + heavy, so each S-box contributes two literals
     with weights [2, 1].
+
+    Args:
+        R: total number of rounds (used for variable numbering).
+        r_start: first round index (inclusive).
+        r_end: last round index (exclusive).
     """
     lits: list[int] = []
     weights: list[int] = []
@@ -242,6 +290,13 @@ def build_weighted_model(R: int, W: int | None = None,
 
     Uses 10-bit prime implicant encoding: each clause encodes both DDT validity
     and the weight variable semantics. Weight = 2*active + heavy per S-box.
+
+    Args:
+        R: number of rounds.
+        W: optional upper bound on total trail weight (added as a hard constraint).
+        active_bounds: optional dict mapping round count k to min active S-boxes.
+        weight_bounds: optional dict mapping round count k to min trail weight,
+                       used to add PC1/PC2 prefix and suffix lower-bound constraints.
     """
     cnf = CNF()
     for r in range(R):
@@ -252,18 +307,15 @@ def build_weighted_model(R: int, W: int | None = None,
             hvy = heavy_var(R, r, s)
             for clause in sbox_weight_clauses_compact(x_vars, y_vars, act, hvy):
                 cnf.append(clause)
-    # Input difference must be non-zero
     cnf.append([diff_var(0, i) for i in range(64)])
 
     if weight_bounds:
-        # PC1: the first `split` rounds must have total weight >= B[split]
         for split in range(1, min(R, 5)):
             b = weight_bounds.get(split, 0)
             if b > 0:
                 lits, ws = _weight_lits_weights(R, 0, split)
                 cnf.extend(PBEnc.atleast(lits=lits, weights=ws, bound=b,
                                          top_id=cnf.nv).clauses)
-        # PC2: the last `suf_len` rounds must have total weight >= B[suf_len]
         for suf_len in range(1, min(R, 5)):
             b = weight_bounds.get(suf_len, 0)
             if b > 0:

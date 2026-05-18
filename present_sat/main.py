@@ -7,7 +7,11 @@ from .search import find_min_active, find_min_weight, ACTIVE_BOUNDS
 
 
 def _run_sat(args: tuple[int, bool, dict[int, int] | None]) -> tuple[int, int, float]:
-    """Worker: run SAT min-weight search for R rounds, return (r, weight, elapsed)."""
+    """Worker: run SAT min-weight search for R rounds, return (r, weight, elapsed).
+
+    Args:
+        args: tuple of (R, use_bounds, weight_bounds).
+    """
     r, use_bounds, wb = args
     t0 = time.time()
     w = find_min_weight(r, use_bounds=use_bounds, weight_bounds=wb)
@@ -15,6 +19,7 @@ def _run_sat(args: tuple[int, bool, dict[int, int] | None]) -> tuple[int, int, f
 
 
 def main() -> None:
+    """CLI entry point for PRESENT min-weight differential trail search."""
     parser = argparse.ArgumentParser(description='PRESENT min-weight differential trail search')
     parser.add_argument('--rmin',   type=int, default=1)
     parser.add_argument('--rmax',   type=int, default=10)
