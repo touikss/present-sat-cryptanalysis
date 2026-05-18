@@ -1,14 +1,14 @@
 import numpy as np
 
-SBOX = [0xC, 0x5, 0x6, 0xB, 0x9, 0x0, 0xA, 0xD, 0x3, 0xE, 0xF, 0x8, 0x4, 0x7, 0x1, 0x2]
+SBOX: list[int] = [0xC, 0x5, 0x6, 0xB, 0x9, 0x0, 0xA, 0xD, 0x3, 0xE, 0xF, 0x8, 0x4, 0x7, 0x1, 0x2]
 
-P = [ 0, 16, 32, 48,  1, 17, 33, 49,  2, 18, 34, 50,  3, 19, 35, 51,
-      4, 20, 36, 52,  5, 21, 37, 53,  6, 22, 38, 54,  7, 23, 39, 55,
-      8, 24, 40, 56,  9, 25, 41, 57, 10, 26, 42, 58, 11, 27, 43, 59,
-     12, 28, 44, 60, 13, 29, 45, 61, 14, 30, 46, 62, 15, 31, 47, 63]
+P: list[int] = [ 0, 16, 32, 48,  1, 17, 33, 49,  2, 18, 34, 50,  3, 19, 35, 51,
+                 4, 20, 36, 52,  5, 21, 37, 53,  6, 22, 38, 54,  7, 23, 39, 55,
+                 8, 24, 40, 56,  9, 25, 41, 57, 10, 26, 42, 58, 11, 27, 43, 59,
+                12, 28, 44, 60, 13, 29, 45, 61, 14, 30, 46, 62, 15, 31, 47, 63]
 
 
-def generate_round_keys(key):
+def generate_round_keys(key: int) -> list[int]:
     """Generate the 32 PRESENT round keys from an 80-bit master key."""
     keys = [key]
     k = key
@@ -21,12 +21,12 @@ def generate_round_keys(key):
     return keys
 
 
-def add_round_key(state, key):
+def add_round_key(state: int, key: int) -> int:
     """XOR the 64-bit state with the top 64 bits of the round key."""
     return state ^ (key >> 16)
 
 
-def sbox_layer(state):
+def sbox_layer(state: int) -> int:
     """Apply the PRESENT S-box to all 16 nibbles of the 64-bit state."""
     result = 0
     for i in range(16):
@@ -34,7 +34,7 @@ def sbox_layer(state):
     return result
 
 
-def p_layer(state):
+def p_layer(state: int) -> int:
     """Apply the PRESENT bit permutation to the 64-bit state."""
     result = 0
     for i in range(64):
@@ -42,7 +42,7 @@ def p_layer(state):
     return result
 
 
-def encrypt(plaintext, keys):
+def encrypt(plaintext: int, keys: list[int]) -> int:
     """Encrypt a 64-bit plaintext using PRESENT with precomputed round keys."""
     state = plaintext
     for i in range(31):
@@ -52,7 +52,7 @@ def encrypt(plaintext, keys):
     return add_round_key(state, keys[31])
 
 
-def build_ddt(sbox):
+def build_ddt(sbox: list[int]) -> np.ndarray:
     """Build the Difference Distribution Table for the given S-box."""
     n = len(sbox)
     ddt = np.zeros((n, n), dtype=int)
@@ -62,10 +62,10 @@ def build_ddt(sbox):
     return ddt
 
 
-DDT = build_ddt(SBOX)
+DDT: np.ndarray = build_ddt(SBOX)
 
 
-def validate_trail(deltas, R):
+def validate_trail(deltas: list[int], R: int) -> bool:
     """Check that a differential trail is compatible with the DDT for all R rounds."""
     for r in range(R):
         din, dout = deltas[r], deltas[r + 1]
