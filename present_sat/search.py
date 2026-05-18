@@ -3,7 +3,7 @@ from pysat.card import CardEnc, EncType
 from pysat.pb import PBEnc
 
 from .encoding import (
-    active_var, w3_var,
+    active_var,
     build_model, build_weighted_model,
     _weight_lits_weights,
 )
@@ -11,10 +11,10 @@ from .encoding import (
 ACTIVE_BOUNDS = {1:1, 2:2, 3:4, 4:6, 5:10, 6:12, 7:14, 8:16, 9:18, 10:20}
 
 
-def find_min_active(R, use_bounds=False, compact=False):
+def find_min_active(R, use_bounds=False):
     """Find the minimum number of active S-boxes in any R-round differential trail."""
     bounds = ACTIVE_BOUNDS if use_bounds else None
-    base   = build_model(R, active_bounds=bounds, compact=compact)
+    base   = build_model(R, active_bounds=bounds)
     lits   = [active_var(R, r, s) for r in range(R) for s in range(16)]
     with Cadical153(bootstrap_with=base.clauses) as solver:
         top = base.nv
@@ -35,15 +35,14 @@ def find_min_active(R, use_bounds=False, compact=False):
     return lo
 
 
-def find_min_weight_fast(R, W_max=None, use_bounds=False, compact=False,
-                         weight_bounds=None):
-    """Find the minimum differential trail weight for R rounds via linear incremental search.
+def find_min_weight(R, W_max=None, use_bounds=False, weight_bounds=None):
+    """Find the minimum differential trail weight for R rounds.
 
-    Starts from 2*min_active, testing each weight in order while keeping the
+    Uses linear incremental search starting from 2*min_active, keeping the
     solver alive to reuse learned clauses between iterations.
     Weight per S-box = 2*active + heavy.
     """
-    min_k = find_min_active(R, use_bounds=use_bounds, compact=compact)
+    min_k = find_min_active(R, use_bounds=use_bounds)
     lo    = 2 * min_k
     hi    = W_max if W_max is not None else 3 * min_k
 
@@ -67,10 +66,10 @@ def find_min_weight_fast(R, W_max=None, use_bounds=False, compact=False,
     return hi
 
 
-def collect_weight_bounds(up_to, use_bounds=False, compact=False):
-    """Compute B[r] = min trail weight for r=1..up_to sequentially, each using prior results."""
+def collect_weight_bounds(up_to, use_bounds=False):
+    """Compute B[r] = min trail weight for r=1..up_to, each reusing prior results."""
     B = {}
     for r in range(1, up_to + 1):
-        B[r] = find_min_weight_fast(r, use_bounds=use_bounds, compact=compact,
-                                    weight_bounds=B if B else None)
+        B[r] = find_min_weight(r, use_bounds=use_bounds,
+                               weight_bounds=B if B else None)
     return B

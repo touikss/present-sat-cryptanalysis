@@ -99,34 +99,9 @@ def active_var(R, r, s):
     return 1 + 64 * (R + 1) + r * 16 + s
 
 
-def w2_var(R, r, s):
-    """Alias for active_var (kept for backward compatibility with find_min_active)."""
-    return active_var(R, r, s)
-
-
-def w3_var(R, r, s):
+def heavy_var(R, r, s):
     """SAT variable: S-box s at round r has a weight-3 (heavy) transition."""
     return 1 + 64 * (R + 1) + R * 16 + r * 16 + s
-
-
-def forbid_assignment(x_vars, y_vars, x_val, y_val):
-    """Clause forbidding the specific (x_val, y_val) assignment on (x_vars, y_vars)."""
-    clause = []
-    for i, var in enumerate(x_vars):
-        clause.append(-var if (x_val >> i) & 1 else var)
-    for i, var in enumerate(y_vars):
-        clause.append(-var if (y_val >> i) & 1 else var)
-    return clause
-
-
-def sbox_clauses(x_vars, y_vars, ddt):
-    """Clauses ruling out all (input, output) DDT pairs with zero probability."""
-    return [
-        forbid_assignment(x_vars, y_vars, a, b)
-        for a in range(16)
-        for b in range(16)
-        if ddt[a][b] == 0
-    ]
 
 
 def sbox_clauses_compact(x_vars, y_vars):
@@ -154,17 +129,7 @@ def sbox_weight_clauses_compact(x_vars, y_vars, act_var, hvy_var):
     ]
 
 
-def build_round(cnf, r, compact=False):
-    """Add CNF clauses for S-box and permutation layer at round r (validity only)."""
-    for s in range(16):
-        x_vars = [diff_var(r,   4 * s + j) for j in range(4)]
-        y_vars = [diff_var(r+1, P[4 * s + j]) for j in range(4)]
-        clauses = sbox_clauses_compact(x_vars, y_vars) if compact else sbox_clauses(x_vars, y_vars, DDT)
-        for clause in clauses:
-            cnf.append(clause)
-
-
-def active_clauses(cnf, R, r, s):
+def _active_clauses(cnf, R, r, s):
     """Add clauses linking active_var(r, s) to (x != 0) for S-box s at round r."""
     a = active_var(R, r, s)
     x = [diff_var(r, 4 * s + j) for j in range(4)]
@@ -173,13 +138,16 @@ def active_clauses(cnf, R, r, s):
         cnf.append([-xi, a])
 
 
-def build_model(R, active_bounds=None, compact=False):
+def build_model(R, active_bounds=None):
     """SAT model for R-round PRESENT differential trail (active S-box count only)."""
     cnf = CNF()
     for r in range(R):
-        build_round(cnf, r, compact=compact)
         for s in range(16):
-            active_clauses(cnf, R, r, s)
+            x_vars = [diff_var(r,   4 * s + j) for j in range(4)]
+            y_vars = [diff_var(r+1, P[4 * s + j]) for j in range(4)]
+            for clause in sbox_clauses_compact(x_vars, y_vars):
+                cnf.append(clause)
+            _active_clauses(cnf, R, r, s)
     cnf.append([diff_var(0, i) for i in range(64)])
     if active_bounds:
         valid = {k: v for k, v in active_bounds.items() if k < R}
@@ -200,17 +168,17 @@ def _weight_lits_weights(R, r_start, r_end):
     ws   = []
     for r in range(r_start, r_end):
         for s in range(16):
-            lits += [active_var(R, r, s), w3_var(R, r, s)]
+            lits += [active_var(R, r, s), heavy_var(R, r, s)]
             ws   += [2, 1]
     return lits, ws
 
 
-def build_weighted_model(R, W=None, active_bounds=None, compact=False, weight_bounds=None):
+def build_weighted_model(R, W=None, active_bounds=None, weight_bounds=None):
     """Build weighted SAT model using compact combined S-box+weight encoding.
 
     Uses 10-bit prime implicant templates: each template clause encodes both
     DDT validity and weight variable semantics in one compact representation.
-    Weight = 2 * active_var + w3_var per S-box.
+    Weight = 2 * active_var + heavy_var per S-box.
     """
     cnf = CNF()
     for r in range(R):
@@ -218,23 +186,18 @@ def build_weighted_model(R, W=None, active_bounds=None, compact=False, weight_bo
             x_vars = [diff_var(r,   4 * s + j) for j in range(4)]
             y_vars = [diff_var(r+1, P[4 * s + j]) for j in range(4)]
             act = active_var(R, r, s)
-            hvy = w3_var(R, r, s)
+            hvy = heavy_var(R, r, s)
             for clause in sbox_weight_clauses_compact(x_vars, y_vars, act, hvy):
                 cnf.append(clause)
     cnf.append([diff_var(0, i) for i in range(64)])
 
     if weight_bounds:
-        # PC1: first `split` rounds ≥ B[split]. Cheap for small split (few lits, small bound).
-        # PC2: last `R-split` rounds ≥ B[R-split]. Cheap when R-split is small.
-        # Only use splits where the resulting PBEnc stays manageable.
-        # Cheap PC1: split=1..4 (small prefix).
         for split in range(1, min(R, 5)):
             b_pre = weight_bounds.get(split, 0)
             if b_pre > 0:
                 lits, ws = _weight_lits_weights(R, 0, split)
                 cnf.extend(PBEnc.atleast(lits=lits, weights=ws, bound=b_pre,
                                          top_id=cnf.nv).clauses)
-        # Cheap PC2: last 1..4 rounds form the suffix (split = R-4..R-1).
         for suf_len in range(1, min(R, 5)):
             split = R - suf_len
             b_suf = weight_bounds.get(suf_len, 0)
