@@ -6,6 +6,17 @@ _IS_TTY = sys.stdout.isatty()
 
 
 class LiveTable:
+    """Terminal table that redraws itself in place using ANSI escape codes.
+
+    Falls back to printing one line per completed round on non-TTY outputs.
+
+    Args:
+        rounds: ordered list of round numbers to display.
+        want_active: whether to show the min active S-box column.
+        want_weight: whether to show the min weight column.
+        want_trail: whether to show the trail status column.
+    """
+
     _P = "..."
 
     def __init__(self, rounds, want_active, want_weight, want_trail):
@@ -23,16 +34,36 @@ class LiveTable:
         self._lock = threading.Lock()
 
     def mark_start(self, r):
+        """Record the start time for round r to display a live elapsed counter.
+
+        Args:
+            r: round number.
+        """
         with self._lock:
             self.start_times[r] = time.time()
 
     def set_testing(self, r, w):
+        """Update the currently tested weight for round r (shown while solving).
+
+        Args:
+            r: round number.
+            w: weight value currently being tested by the solver.
+        """
         with self._lock:
             self.testing[r] = w
             if _IS_TTY:
                 self._redraw_locked()
 
     def update(self, r, *, active=None, weight=None, trail_done=False, elapsed=None):
+        """Store final results for round r and redraw the table.
+
+        Args:
+            r: round number.
+            active: minimum number of active S-boxes (if computed).
+            weight: minimum trail weight (if computed).
+            trail_done: set to True when the trail for this round is ready.
+            elapsed: total wall-clock time in seconds for this round.
+        """
         with self._lock:
             if active is not None: self.active[r] = active
             if weight is not None: self.weight[r] = weight
@@ -41,6 +72,7 @@ class LiveTable:
             self._redraw_locked()
 
     def _build(self):
+        """Build and return the list of lines to display."""
         P = self._P
         lines = []
 
@@ -96,10 +128,12 @@ class LiveTable:
         return lines
 
     def _redraw(self):
+        """Acquire the lock and redraw the table."""
         with self._lock:
             self._redraw_locked()
 
     def _redraw_locked(self):
+        """Redraw the table (must be called with self._lock held)."""
         lines = self._build()
         if _IS_TTY:
             if self._drawn:
@@ -118,6 +152,11 @@ class LiveTable:
 
 
 def print_trails(trail_res):
+    """Print all extracted differential trails in hexadecimal.
+
+    Args:
+        trail_res: dict mapping round number to a list of R+1 difference words.
+    """
     for r in sorted(trail_res):
         trail = trail_res[r]
         print(f"R={r:2d}:")

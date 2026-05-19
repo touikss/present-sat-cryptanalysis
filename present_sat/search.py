@@ -4,6 +4,14 @@ from pysat.pb import PBEnc
 
 from .encoding import active_var, build_model, build_weighted_model, _weight_lits_weights, decode_trail
 
+# Known minimum active S-box counts for PRESENT (from the literature).
+ACTIVE_BOUNDS = {
+    1: 1,   2: 2,   3: 4,   4: 6,   5: 10,  6: 12,  7: 14,  8: 16,  9: 18,  10: 20,
+    11: 22, 12: 24, 13: 26, 14: 28, 15: 30, 16: 32, 17: 34, 18: 36, 19: 38, 20: 40,
+    21: 42, 22: 44, 23: 46, 24: 48, 25: 50, 26: 52, 27: 54, 28: 56, 29: 58, 30: 60,
+    31: 62,
+}
+
 # Known minimum trail weights for PRESENT (from the literature).
 # Used as a lower bound: weight[R] >= WEIGHT_BOUNDS[R-1] + 2.
 WEIGHT_BOUNDS = {
@@ -19,17 +27,21 @@ SOLVERS = {
 }
 
 
-def find_min_active_sbox(R, solver="cadical", *, return_trail=False):
+def find_min_active_sbox(R, solver="kissat", *, return_trail=False):
     """Find the minimum number of active S-boxes in any R-round differential trail.
 
     Uses binary search with a cardinality constraint (at-most k active S-boxes).
     CaDiCaL reuses learned clauses across iterations; Kissat creates a fresh solver each time.
+    Returns the cached value from ACTIVE_BOUNDS when available and return_trail is False.
 
     Args:
         R: number of rounds.
         solver: SAT solver to use, either 'cadical' or 'kissat'.
         return_trail: if True, also return an optimal trail as a list of R+1 difference words.
     """
+    if not return_trail and R in ACTIVE_BOUNDS:
+        return ACTIVE_BOUNDS[R]
+
     base = build_model(R)
     lits = [active_var(R, r, s) for r in range(R) for s in range(16)]
 
@@ -66,8 +78,6 @@ def find_min_active_sbox(R, solver="cadical", *, return_trail=False):
             cnf_clauses = base.clauses + enc.clauses
             with Kissat404(bootstrap_with=cnf_clauses) as s:
                 sat = s.solve()
-                if sat and mid == lo:
-                    model = s.get_model() if return_trail else None
             if sat:
                 hi = mid
             else:
@@ -80,7 +90,7 @@ def find_min_active_sbox(R, solver="cadical", *, return_trail=False):
             return lo, decode_trail(s.get_model(), R)
 
 
-def find_min_trail_weight(R, W_min=None, W_max=None, solver="cadical", *, return_trail=False, progress_queue=None):
+def find_min_trail_weight(R, W_min=None, solver="kissat", *, return_trail=False, progress_queue=None):
     """Find the minimum differential trail weight for R rounds.
 
     First computes min_active, then does a linear search from lo upward.
@@ -91,7 +101,6 @@ def find_min_trail_weight(R, W_min=None, W_max=None, solver="cadical", *, return
         R: number of rounds.
         W_min: optional lower bound (e.g. weight[R-1] from a previous run).
                WEIGHT_BOUNDS[R-1] is used as fallback when W_min is None.
-        W_max: optional upper bound; defaults to max(3*min_active, lo+16).
         solver: SAT solver to use, either 'cadical' or 'kissat'.
         return_trail: if True, also return an optimal trail as a list of R+1 difference words.
         progress_queue: optional multiprocessing.Queue to send (R, W) progress updates.
@@ -102,7 +111,7 @@ def find_min_trail_weight(R, W_min=None, W_max=None, solver="cadical", *, return
     # => weight[R] >= weight[R-1] + 2, use WEIGHT_BOUNDS as fallback when W_min not given
     prev = W_min if W_min is not None else WEIGHT_BOUNDS.get(R - 1)
     lo = max(2 * min_k, prev + 2) if prev is not None else 2 * min_k
-    hi = W_max if W_max is not None else max(3 * min_k, lo + 16)
+    hi = max(3 * min_k, lo + 16)
 
     if solver == "cadical":
         base = build_weighted_model(R, W=None)

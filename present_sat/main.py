@@ -16,11 +16,21 @@ _worker_queue = None
 
 
 def _init_worker(q):
+    """Initialize the global progress queue in each worker process.
+
+    Args:
+        q: multiprocessing.Queue used to send (round, W) progress updates.
+    """
     global _worker_queue
     _worker_queue = q
 
 
 def _run_active(args):
+    """Worker: compute min active S-boxes for one round.
+
+    Args:
+        args: tuple (r, solver) — round number and solver name.
+    """
     r, solver = args
     t0 = time.time()
     a = find_min_active_sbox(r, solver=solver)
@@ -28,6 +38,11 @@ def _run_active(args):
 
 
 def _run_weight(args):
+    """Worker: compute min trail weight for one round.
+
+    Args:
+        args: tuple (r, solver, w_min) — round, solver, optional lower bound.
+    """
     r, solver, w_min = args
     t0 = time.time()
     w = find_min_trail_weight(r, W_min=w_min, solver=solver, progress_queue=_worker_queue)
@@ -35,6 +50,11 @@ def _run_weight(args):
 
 
 def _run_active_weight(args):
+    """Worker: compute both min active S-boxes and min trail weight for one round.
+
+    Args:
+        args: tuple (r, solver, w_min) — round, solver, optional weight lower bound.
+    """
     r, solver, w_min = args
     t0 = time.time()
     a = find_min_active_sbox(r, solver=solver)
@@ -43,6 +63,11 @@ def _run_active_weight(args):
 
 
 def _run_active_trail(args):
+    """Worker: compute min active S-boxes and extract an optimal trail for one round.
+
+    Args:
+        args: tuple (r, solver) — round number and solver name.
+    """
     r, solver = args
     t0 = time.time()
     a, trail = find_min_active_sbox(r, solver=solver, return_trail=True)
@@ -50,6 +75,11 @@ def _run_active_trail(args):
 
 
 def _run_weight_trail(args):
+    """Worker: compute min trail weight and extract an optimal trail for one round.
+
+    Args:
+        args: tuple (r, solver, w_min) — round, solver, optional weight lower bound.
+    """
     r, solver, w_min = args
     t0 = time.time()
     w, trail = find_min_trail_weight(r, W_min=w_min, solver=solver, return_trail=True, progress_queue=_worker_queue)
@@ -57,6 +87,11 @@ def _run_weight_trail(args):
 
 
 def _run_active_weight_trail(args):
+    """Worker: compute min active, min weight, and extract an optimal trail for one round.
+
+    Args:
+        args: tuple (r, solver, w_min) — round, solver, optional weight lower bound.
+    """
     r, solver, w_min = args
     t0 = time.time()
     a = find_min_active_sbox(r, solver=solver)
@@ -65,6 +100,11 @@ def _run_active_weight_trail(args):
 
 
 def _shutdown(ex):
+    """Terminate all worker processes and exit on interrupt.
+
+    Args:
+        ex: the ProcessPoolExecutor to shut down.
+    """
     print("\nInterrupted, shutting down workers...")
     procs = list(ex._processes.values()) if ex._processes else []
     ex.shutdown(wait=False, cancel_futures=True)
@@ -74,13 +114,18 @@ def _shutdown(ex):
 
 
 def _collect(ex, futures):
+    """Yield results from futures, handling SIGTERM and KeyboardInterrupt.
+
+    Args:
+        ex: the ProcessPoolExecutor (used for clean shutdown on interrupt).
+        futures: dict mapping Future to round number.
+    """
     signal.signal(signal.SIGTERM, lambda _sig, _frame: _shutdown(ex))
     try:
         for fut in as_completed(futures):
             yield fut.result()
     except KeyboardInterrupt:
         _shutdown(ex)
-
 
 
 def main():
