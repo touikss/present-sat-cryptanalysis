@@ -153,17 +153,17 @@ def main():
     if args.trail and args.active and args.weight:
         worker, mk_args = _run_active_weight_trail, lambda r, wm=None: (r, args.solver, wm)
     elif args.trail and args.weight:
-        worker, mk_args = _run_weight_trail,        lambda r, wm=None: (r, args.solver, wm)
+        worker, mk_args = _run_weight_trail, lambda r, wm=None: (r, args.solver, wm)
     elif args.trail and args.active:
-        worker, mk_args = _run_active_trail,        lambda r: (r, args.solver)
+        worker, mk_args = _run_active_trail, lambda r: (r, args.solver)
     elif args.trail:
-        worker, mk_args = _run_weight_trail,        lambda r, wm=None: (r, args.solver, wm)
+        worker, mk_args = _run_weight_trail, lambda r, wm=None: (r, args.solver, wm)
     elif args.active and args.weight:
-        worker, mk_args = _run_active_weight,       lambda r, wm=None: (r, args.solver, wm)
+        worker, mk_args = _run_active_weight, lambda r, wm=None: (r, args.solver, wm)
     elif args.weight:
-        worker, mk_args = _run_weight,              lambda r, wm=None: (r, args.solver, wm)
+        worker, mk_args = _run_weight, lambda r, wm=None: (r, args.solver, wm)
     else:
-        worker, mk_args = _run_active,              lambda r: (r, args.solver)
+        worker, mk_args = _run_active, lambda r: (r, args.solver)
 
     opts = []
     if args.seq:    opts.append("seq")

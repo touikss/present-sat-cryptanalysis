@@ -15,7 +15,7 @@ ACTIVE_BOUNDS = {
 # Known minimum trail weights for PRESENT (from the literature).
 # Used as a lower bound: weight[R] >= WEIGHT_BOUNDS[R-1] + 2.
 WEIGHT_BOUNDS = {
-    1: 2,   2: 4,   3: 8,   4: 12,  5: 20,  6: 24,  7: 28,  8: 32,  9: 36,  10: 41,
+    1: 2, 2: 4, 3: 8, 4: 12, 5: 20, 6: 24,  7: 28,  8: 32,  9: 36,  10: 41,
     11: 46, 12: 52, 13: 56, 14: 62, 15: 66, 16: 70, 17: 74, 18: 78, 19: 82, 20: 86,
     21: 90, 22: 96, 23: 100, 24: 106, 25: 110, 26: 116, 27: 120, 28: 124, 29: 128,
     30: 132, 31: 136,
@@ -23,7 +23,7 @@ WEIGHT_BOUNDS = {
 
 SOLVERS = {
     "cadical": Cadical195,
-    "kissat":  Kissat404,
+    "kissat": Kissat404,
 }
 
 
@@ -128,9 +128,7 @@ def find_min_trail_weight(R, W_min=None, solver="kissat", *, return_trail=False,
                     s.add_clause([-act] + clause)
                 top = pb.nv
                 if s.solve(assumptions=[act]):
-                    if return_trail:
-                        return W, decode_trail(s.get_model(), R)
-                    return W
+                    return W, decode_trail(s.get_model(), R) if return_trail else W
     else:
         for W in range(lo, hi + 1):
             if progress_queue is not None:
@@ -138,8 +136,6 @@ def find_min_trail_weight(R, W_min=None, solver="kissat", *, return_trail=False,
             base = build_weighted_model(R, W=W)
             with Kissat404(bootstrap_with=base.clauses) as s:
                 if s.solve():
-                    if return_trail:
-                        return W, decode_trail(s.get_model(), R)
-                    return W
+                    return W, decode_trail(s.get_model(), R) if return_trail else W
 
     return (hi, []) if return_trail else hi
