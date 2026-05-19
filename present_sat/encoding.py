@@ -160,6 +160,19 @@ def heavy_var(R, r, s):
     return 1 + 64 * (R + 1) + R * 16 + r * 16 + s
 
 
+def _apply_templates(templates, all_vars):
+    """Instantiate a list of prime-implicant clause templates against concrete SAT variables.
+
+    Args:
+        templates: list of clause templates, each a list of (bit_index, is_positive) pairs.
+        all_vars: list of SAT variable indices indexed by bit position.
+    """
+    return [
+        [all_vars[i] if pos else -all_vars[i] for i, pos in template]
+        for template in templates
+    ]
+
+
 def sbox_clauses_compact(x_vars, y_vars):
     """CNF clauses ruling out all DDT-invalid (input, output) pairs for one S-box.
 
@@ -167,15 +180,7 @@ def sbox_clauses_compact(x_vars, y_vars):
         x_vars: list of 4 SAT variable indices for the input nibble bits.
         y_vars: list of 4 SAT variable indices for the output nibble bits.
     """
-    all_vars = x_vars + y_vars
-    clauses = []
-    for template in _SBOX_PI_TEMPLATES:
-        clause = []
-        for bit_index, is_positive in template:
-            var = all_vars[bit_index]
-            clause.append(var if is_positive else -var)
-        clauses.append(clause)
-    return clauses
+    return _apply_templates(_SBOX_PI_TEMPLATES, x_vars + y_vars)
 
 
 def sbox_weight_clauses_compact(x_vars, y_vars, act_var, hvy_var):
@@ -187,15 +192,7 @@ def sbox_weight_clauses_compact(x_vars, y_vars, act_var, hvy_var):
         act_var: SAT variable index for the active flag (1 iff input diff != 0).
         hvy_var: SAT variable index for the heavy flag (1 iff DDT value = 2).
     """
-    all_vars = x_vars + y_vars + [act_var, hvy_var]
-    clauses = []
-    for template in _SBOX_WEIGHT_TEMPLATES:
-        clause = []
-        for bit_index, is_positive in template:
-            var = all_vars[bit_index]
-            clause.append(var if is_positive else -var)
-        clauses.append(clause)
-    return clauses
+    return _apply_templates(_SBOX_WEIGHT_TEMPLATES, x_vars + y_vars + [act_var, hvy_var])
 
 
 def _active_clauses(cnf, R, r, s):
