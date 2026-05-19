@@ -5,7 +5,16 @@ from .present import P, DDT
 
 
 def _compute_pi_clauses(valid, invalid, nbits):
-    # Quine-McCluskey: build prime implicants covering only invalid minterms
+    """Quine-McCluskey minimization over an nbits-wide boolean space.
+
+    Returns a minimal set of clause templates (prime implicants) that cover
+    all invalid minterms without covering any valid ones.
+
+    Args:
+        valid: set of valid minterms (must not be covered).
+        invalid: set of invalid minterms to cover.
+        nbits: number of bits in the space.
+    """
     mask_all = (1 << nbits) - 1
 
     current = set()
@@ -71,6 +80,11 @@ def _compute_pi_clauses(valid, invalid, nbits):
 
 
 def _compute_sbox_pi_clauses(ddt):
+    """Build 8-bit CNF clause templates ruling out all DDT-invalid (input, output) pairs.
+
+    Args:
+        ddt: the S-box Difference Distribution Table (16x16 array).
+    """
     valid = set()
     invalid = set()
     for a in range(16):
@@ -84,8 +98,14 @@ def _compute_sbox_pi_clauses(ddt):
 
 
 def _compute_sbox_weight_pi_clauses(ddt):
-    # bits 0-3 = input diff, 4-7 = output diff, 8 = active, 9 = heavy
-    # weight per S-box = 2*active + heavy
+    """Build 10-bit CNF clause templates encoding DDT validity and weight for one S-box.
+
+    Bit layout: 0-3 = input diff, 4-7 = output diff, 8 = active, 9 = heavy.
+    Weight per S-box = 2*active + heavy (heavy means DDT entry = 2).
+
+    Args:
+        ddt: the S-box Difference Distribution Table (16x16 array).
+    """
     valid = {0}
     for a in range(1, 16):
         for b in range(16):
@@ -105,18 +125,48 @@ _SBOX_WEIGHT_TEMPLATES = _compute_sbox_weight_pi_clauses(DDT)
 
 
 def diff_var(r, i):
+    """SAT variable index for bit i of the difference word entering round r.
+
+    Args:
+        r: round index (0 = plaintext difference, R = ciphertext difference).
+        i: bit index (0-63).
+    """
     return 1 + r * 64 + i
 
 
 def active_var(R, r, s):
+    """SAT variable index for the active flag of S-box s at round r.
+
+    Active means the S-box input difference is non-zero.
+
+    Args:
+        R: total number of rounds (used to offset variable numbering).
+        r: round index.
+        s: S-box index (0-15).
+    """
     return 1 + 64 * (R + 1) + r * 16 + s
 
 
 def heavy_var(R, r, s):
+    """SAT variable index for the heavy flag of S-box s at round r.
+
+    Heavy means the transition has DDT value 2, contributing weight 3 instead of 2.
+
+    Args:
+        R: total number of rounds (used to offset variable numbering).
+        r: round index.
+        s: S-box index (0-15).
+    """
     return 1 + 64 * (R + 1) + R * 16 + r * 16 + s
 
 
 def sbox_clauses_compact(x_vars, y_vars):
+    """CNF clauses ruling out all DDT-invalid (input, output) pairs for one S-box.
+
+    Args:
+        x_vars: list of 4 SAT variable indices for the input nibble bits.
+        y_vars: list of 4 SAT variable indices for the output nibble bits.
+    """
     all_vars = x_vars + y_vars
     clauses = []
     for template in _SBOX_PI_TEMPLATES:
@@ -129,6 +179,14 @@ def sbox_clauses_compact(x_vars, y_vars):
 
 
 def sbox_weight_clauses_compact(x_vars, y_vars, act_var, hvy_var):
+    """CNF clauses encoding DDT validity and weight variables for one S-box.
+
+    Args:
+        x_vars: list of 4 SAT variable indices for the input nibble bits.
+        y_vars: list of 4 SAT variable indices for the output nibble bits.
+        act_var: SAT variable index for the active flag (1 iff input diff != 0).
+        hvy_var: SAT variable index for the heavy flag (1 iff DDT value = 2).
+    """
     all_vars = x_vars + y_vars + [act_var, hvy_var]
     clauses = []
     for template in _SBOX_WEIGHT_TEMPLATES:
@@ -141,6 +199,14 @@ def sbox_weight_clauses_compact(x_vars, y_vars, act_var, hvy_var):
 
 
 def _active_clauses(cnf, R, r, s):
+    """Add clauses linking active_var(R, r, s) to (input diff != 0) for S-box s.
+
+    Args:
+        cnf: the CNF formula to extend.
+        R: total number of rounds.
+        r: round index.
+        s: S-box index (0-15).
+    """
     a = active_var(R, r, s)
     x_bits = [diff_var(r, 4 * s + j) for j in range(4)]
     cnf.append([-a] + x_bits)
@@ -149,6 +215,14 @@ def _active_clauses(cnf, R, r, s):
 
 
 def build_model(R):
+    """Build a SAT model for R-round PRESENT differential trails (active S-box count only).
+
+    Encodes S-box DDT constraints, the permutation layer, and forces
+    both input and output differences to be non-zero.
+
+    Args:
+        R: number of rounds.
+    """
     cnf = CNF()
     for r in range(R):
         for s in range(16):
@@ -163,6 +237,16 @@ def build_model(R):
 
 
 def _weight_lits_weights(R, r_start, r_end):
+    """Return (lits, weights) for a pseudo-Boolean constraint over rounds r_start..r_end-1.
+
+    Each S-box contributes two literals: active_var with weight 2, heavy_var with weight 1,
+    so the total encodes weight = 2*active + heavy.
+
+    Args:
+        R: total number of rounds (for variable numbering).
+        r_start: first round index (inclusive).
+        r_end: last round index (exclusive).
+    """
     lits = []
     weights = []
     for r in range(r_start, r_end):
@@ -175,6 +259,16 @@ def _weight_lits_weights(R, r_start, r_end):
 
 
 def build_weighted_model(R, W=None):
+    """Build a SAT model for R-round PRESENT differential trails with weight tracking.
+
+    Uses the 10-bit prime implicant encoding so each clause jointly encodes
+    DDT validity and the active/heavy weight variables.
+
+    Args:
+        R: number of rounds.
+        W: optional upper bound on total trail weight added as a hard constraint.
+           If None, no weight constraint is added (useful for incremental solving).
+    """
     cnf = CNF()
     for r in range(R):
         for s in range(16):
@@ -193,6 +287,15 @@ def build_weighted_model(R, W=None):
 
 
 def decode_trail(model, R):
+    """Decode R+1 difference words from a SAT solver model.
+
+    Args:
+        model: list of signed integers from the solver (positive = True, negative = False).
+        R: number of rounds.
+
+    Returns:
+        List of R+1 integers where entry r is the 64-bit difference word entering round r.
+    """
     pos = set(model)
     diffs = []
     for r in range(R + 1):

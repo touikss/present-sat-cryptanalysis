@@ -85,17 +85,15 @@ def _collect(ex, futures):
 
 def main():
     parser = argparse.ArgumentParser(description="PRESENT differential trail search")
-    parser.add_argument("--rmin",    type=int, default=1)
-    parser.add_argument("--rmax",    type=int, default=10)
-    parser.add_argument("--active",  action="store_true")
-    parser.add_argument("--weight",  action="store_true")
-    parser.add_argument("--trail",   action="store_true")
-    parser.add_argument("--seq",     action="store_true",
-                        help="sequential: use weight[R-1] as lower bound for weight[R]")
-    parser.add_argument("--cached",  action="store_true",
-                        help="parallel: pass cached weight[R-1] as lower bound when available")
+    parser.add_argument("--rmin", type=int, default=1)
+    parser.add_argument("--rmax", type=int, default=10)
+    parser.add_argument("--active", action="store_true")
+    parser.add_argument("--weight", action="store_true")
+    parser.add_argument("--trail", action="store_true")
+    parser.add_argument("--seq", action="store_true", help="sequential: use weight[R-1] as lower bound for weight[R]")
+    parser.add_argument("--cached",  action="store_true", help="parallel: pass cached weight[R-1] as lower bound when available")
     parser.add_argument("--workers", type=int, default=None)
-    parser.add_argument("--solver",  choices=list(SOLVERS), default="kissat")
+    parser.add_argument("--solver", choices=list(SOLVERS), default="kissat")
     args = parser.parse_args()
 
     if not (args.active or args.weight or args.trail):

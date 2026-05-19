@@ -4,6 +4,8 @@ from pysat.pb import PBEnc
 
 from .encoding import active_var, build_model, build_weighted_model, _weight_lits_weights, decode_trail
 
+# Known minimum trail weights for PRESENT (from the literature).
+# Used as a lower bound: weight[R] >= WEIGHT_BOUNDS[R-1] + 2.
 WEIGHT_BOUNDS = {
     1: 2,   2: 4,   3: 8,   4: 12,  5: 20,  6: 24,  7: 28,  8: 32,  9: 36,  10: 41,
     11: 46, 12: 52, 13: 56, 14: 62, 15: 66, 16: 70, 17: 74, 18: 78, 19: 82, 20: 86,
@@ -18,6 +20,16 @@ SOLVERS = {
 
 
 def find_min_active_sbox(R, solver="cadical", *, return_trail=False):
+    """Find the minimum number of active S-boxes in any R-round differential trail.
+
+    Uses binary search with a cardinality constraint (at-most k active S-boxes).
+    CaDiCaL reuses learned clauses across iterations; Kissat creates a fresh solver each time.
+
+    Args:
+        R: number of rounds.
+        solver: SAT solver to use, either 'cadical' or 'kissat'.
+        return_trail: if True, also return an optimal trail as a list of R+1 difference words.
+    """
     base = build_model(R)
     lits = [active_var(R, r, s) for r in range(R) for s in range(16)]
 
@@ -69,6 +81,21 @@ def find_min_active_sbox(R, solver="cadical", *, return_trail=False):
 
 
 def find_min_trail_weight(R, W_min=None, W_max=None, solver="cadical", *, return_trail=False, progress_queue=None):
+    """Find the minimum differential trail weight for R rounds.
+
+    First computes min_active, then does a linear search from lo upward.
+    CaDiCaL keeps the solver alive between iterations to reuse learned clauses.
+    Kissat creates a fresh solver for each candidate weight.
+
+    Args:
+        R: number of rounds.
+        W_min: optional lower bound (e.g. weight[R-1] from a previous run).
+               WEIGHT_BOUNDS[R-1] is used as fallback when W_min is None.
+        W_max: optional upper bound; defaults to max(3*min_active, lo+16).
+        solver: SAT solver to use, either 'cadical' or 'kissat'.
+        return_trail: if True, also return an optimal trail as a list of R+1 difference words.
+        progress_queue: optional multiprocessing.Queue to send (R, W) progress updates.
+    """
     min_k = find_min_active_sbox(R, solver=solver)
 
     # output diff is non-zero, so adding a round adds at least weight 2
