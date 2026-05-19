@@ -3,6 +3,7 @@ import os
 import signal
 import sys
 import time
+import threading
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from .search import find_min_active_sbox, find_min_trail_weight, ACTIVE_BOUNDS, SOLVERS
@@ -95,11 +96,15 @@ class _LiveTable:
         self.want_active = want_active
         self.want_weight = want_weight
         self.want_trail = want_trail
-        self.active:     dict[int, int]       = {}
-        self.weight:     dict[int, int]       = {}
-        self.times:      dict[int, float]     = {}
-        self.trail_done: set[int]             = set()
+        self.active:      dict[int, int]   = {}
+        self.weight:      dict[int, int]   = {}
+        self.times:       dict[int, float] = {}
+        self.start_times: dict[int, float] = {}
+        self.trail_done:  set[int]         = set()
         self._drawn = 0
+
+    def mark_start(self, r: int) -> None:
+        self.start_times[r] = time.time()
 
     def update(self, r: int, *,
                active: int | None = None,
@@ -154,7 +159,13 @@ class _LiveTable:
                     row += [f"{'':>4}"]
             if self.want_trail:
                 row += [f"{'ok':>5}" if r in self.trail_done else f"{'...':>5}"]
-            row += [f"{t:>7.3f}s" if t is not None else f"{'':>8}"]
+            if t is not None:
+                row += [f"{t:>7.3f}s"]
+            elif r in self.start_times:
+                elapsed = time.time() - self.start_times[r]
+                row += [f"{elapsed:>7.1f}s"]
+            else:
+                row += [f"{'':>8}"]
 
             lines.append("  ".join(row))
 
@@ -202,7 +213,9 @@ def main() -> None:
     parser.add_argument("--rmin",    type=int, default=1)
     parser.add_argument("--rmax",    type=int, default=10)
     parser.add_argument("--bounds",  action="store_true",
-                        help="use precomputed active-sbox prefix bounds to prune the search")
+                        help="add precomputed active-sbox prefix lower-bounds to the model")
+    parser.add_argument("--pc",      action="store_true",
+                        help="add PC1/PC2 weight lower-bounds on prefixes and suffixes (Matsui)")
     parser.add_argument("--active",  action="store_true",
                         help="compute the minimum number of active S-boxes per round")
     parser.add_argument("--weight",  action="store_true",
@@ -211,8 +224,8 @@ def main() -> None:
                         help="extract and display an optimal differential trail per round")
     parser.add_argument("--workers", type=int, default=None,
                         help="maximum number of parallel workers (default: cpu_count // 3)")
-    parser.add_argument("--solver",  choices=list(SOLVERS), default="cadical",
-                        help="SAT solver to use (default: cadical)")
+    parser.add_argument("--solver",  choices=list(SOLVERS), default="kissat",
+                        help="SAT solver to use (default: kissat)")
     args = parser.parse_args()
 
     if not (args.active or args.weight or args.trail):
@@ -222,7 +235,7 @@ def main() -> None:
     default_workers = max(1, os.cpu_count() // 3)
     n_workers = max(1, min(len(rounds), args.workers or default_workers))
 
-    wb: dict[int, int] = {r: 2 * v for r, v in ACTIVE_BOUNDS.items()}
+    wb: dict[int, int] | None = {r: 2 * v for r, v in ACTIVE_BOUNDS.items()} if args.pc else None
     trail_res: dict[int, list[int]] = {}
 
     # Select worker and argument builder based on requested outputs.
@@ -245,13 +258,24 @@ def main() -> None:
     if _IS_TTY and (args.active or args.weight or args.trail):
         table._redraw()  # show empty table immediately
 
+    stop_timer = threading.Event()
+    if _IS_TTY:
+        def _timer():
+            while not stop_timer.wait(1.0):
+                table._redraw()
+        threading.Thread(target=_timer, daemon=True).start()
+
     with ProcessPoolExecutor(max_workers=n_workers) as ex:
         futures = {ex.submit(worker, mk_args(r)): r for r in rounds}
+        for r in rounds:
+            table.mark_start(r)
         for res in _collect(ex, futures):
             _, r, a, w, trail, elapsed = res
             if trail is not None:
                 trail_res[r] = trail
             table.update(r, active=a, weight=w, trail_done=trail is not None, elapsed=elapsed)
+
+    stop_timer.set()
 
     if args.trail:
         print()
