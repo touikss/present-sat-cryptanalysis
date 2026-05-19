@@ -343,3 +343,24 @@ def build_weighted_model(R: int, W: int | None = None,
         cnf.extend(PBEnc.atmost(lits=lits, weights=ws, bound=W, top_id=cnf.nv).clauses)
 
     return cnf
+
+
+def decode_trail(model: list[int], R: int) -> list[int]:
+    """Decode R+1 difference words from a SAT model.
+
+    Returns a list of R+1 64-bit integers: deltas[r] is the difference word
+    at position r (deltas[0] = input diff, deltas[R] = output diff).
+
+    Args:
+        model: list of signed integers from the solver (positive = True).
+        R: number of rounds.
+    """
+    pos = set(model)
+    diffs = []
+    for r in range(R + 1):
+        val = 0
+        for i in range(64):
+            if diff_var(r, i) in pos:
+                val |= (1 << i)
+        diffs.append(val)
+    return diffs
