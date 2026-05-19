@@ -20,40 +20,40 @@ def _run_active(args: tuple[int, bool, str]) -> tuple[str, int, int, None, None,
     return "active", r, a, None, None, time.time() - t0
 
 
-def _run_weight(args: tuple[int, bool, dict[int, int], str]) -> tuple[str, int, None, int, None, float]:
-    r, use_bounds, wb, solver = args
+def _run_weight(args) -> tuple[str, int, None, int, None, float]:
+    r, use_bounds, wb, solver, w_min = args
     t0 = time.time()
-    w = find_min_trail_weight(r, use_bounds=use_bounds, weight_bounds=wb, solver=solver)
+    w = find_min_trail_weight(r, W_min=w_min, use_bounds=use_bounds, weight_bounds=wb, solver=solver)
     return "weight", r, None, w, None, time.time() - t0
 
 
-def _run_active_weight(args: tuple[int, bool, dict[int, int], str]) -> tuple[str, int, int, int, None, float]:
-    r, use_bounds, wb, solver = args
+def _run_active_weight(args) -> tuple[str, int, int, int, None, float]:
+    r, use_bounds, wb, solver, w_min = args
     t0 = time.time()
     a = find_min_active_sbox(r, use_bounds=use_bounds, solver=solver)
-    w = find_min_trail_weight(r, use_bounds=use_bounds, weight_bounds=wb, solver=solver)
+    w = find_min_trail_weight(r, W_min=w_min, use_bounds=use_bounds, weight_bounds=wb, solver=solver)
     return "active_weight", r, a, w, None, time.time() - t0
 
 
-def _run_active_trail(args: tuple[int, bool, str]) -> tuple[str, int, int, None, list[int], float]:
+def _run_active_trail(args) -> tuple[str, int, int, None, list[int], float]:
     r, use_bounds, solver = args
     t0 = time.time()
     a, trail = find_min_active_sbox(r, use_bounds=use_bounds, solver=solver, return_trail=True)
     return "active_trail", r, a, None, trail, time.time() - t0
 
 
-def _run_weight_trail(args: tuple[int, bool, dict[int, int], str]) -> tuple[str, int, None, int, list[int], float]:
-    r, use_bounds, wb, solver = args
+def _run_weight_trail(args) -> tuple[str, int, None, int, list[int], float]:
+    r, use_bounds, wb, solver, w_min = args
     t0 = time.time()
-    w, trail = find_min_trail_weight(r, use_bounds=use_bounds, weight_bounds=wb, solver=solver, return_trail=True)
+    w, trail = find_min_trail_weight(r, W_min=w_min, use_bounds=use_bounds, weight_bounds=wb, solver=solver, return_trail=True)
     return "weight_trail", r, None, w, trail, time.time() - t0
 
 
-def _run_active_weight_trail(args: tuple[int, bool, dict[int, int], str]) -> tuple[str, int, int, int, list[int], float]:
-    r, use_bounds, wb, solver = args
+def _run_active_weight_trail(args) -> tuple[str, int, int, int, list[int], float]:
+    r, use_bounds, wb, solver, w_min = args
     t0 = time.time()
     a = find_min_active_sbox(r, use_bounds=use_bounds, solver=solver)
-    w, trail = find_min_trail_weight(r, use_bounds=use_bounds, weight_bounds=wb, solver=solver, return_trail=True)
+    w, trail = find_min_trail_weight(r, W_min=w_min, use_bounds=use_bounds, weight_bounds=wb, solver=solver, return_trail=True)
     return "active_weight_trail", r, a, w, trail, time.time() - t0
 
 
@@ -105,18 +105,20 @@ class _LiveTable:
         self._lock  = threading.Lock()
 
     def mark_start(self, r: int) -> None:
-        self.start_times[r] = time.time()
+        with self._lock:
+            self.start_times[r] = time.time()
 
     def update(self, r: int, *,
                active: int | None = None,
                weight: int | None = None,
                trail_done: bool = False,
                elapsed: float | None = None) -> None:
-        if active  is not None: self.active[r]  = active
-        if weight  is not None: self.weight[r]  = weight
-        if elapsed is not None: self.times[r]   = elapsed
-        if trail_done:          self.trail_done.add(r)
-        self._redraw()
+        with self._lock:
+            if active  is not None: self.active[r]  = active
+            if weight  is not None: self.weight[r]  = weight
+            if elapsed is not None: self.times[r]   = elapsed
+            if trail_done:          self.trail_done.add(r)
+            self._redraw_locked()
 
     # --- rendering ----------------------------------------------------------
 
@@ -173,6 +175,10 @@ class _LiveTable:
         return lines
 
     def _redraw(self) -> None:
+        with self._lock:
+            self._redraw_locked()
+
+    def _redraw_locked(self) -> None:
         lines = self._build()
         if _IS_TTY:
             if self._drawn:
@@ -225,6 +231,8 @@ def main() -> None:
                         help="extract and display an optimal differential trail per round")
     parser.add_argument("--seq",     action="store_true",
                         help="sequential mode: use weight[R-1] as lower bound for weight[R]")
+    parser.add_argument("--cached",  action="store_true",
+                        help="parallel mode: pass cached weight[R-1] as lower bound when available")
     parser.add_argument("--workers", type=int, default=None,
                         help="maximum number of parallel workers (default: cpu_count // 3)")
     parser.add_argument("--solver",  choices=list(SOLVERS), default="kissat",
@@ -249,18 +257,19 @@ def main() -> None:
     elif args.trail and args.active:
         worker, mk_args = _run_active_trail,        lambda r: (r, args.bounds, args.solver)
     elif args.trail:
-        worker, mk_args = _run_weight_trail,        lambda r: (r, args.bounds, wb, args.solver)
+        worker, mk_args = _run_weight_trail,        lambda r, wm=None: (r, args.bounds, wb, args.solver, wm)
     elif args.active and args.weight:
-        worker, mk_args = _run_active_weight,       lambda r: (r, args.bounds, wb, args.solver)
+        worker, mk_args = _run_active_weight,       lambda r, wm=None: (r, args.bounds, wb, args.solver, wm)
     elif args.weight:
-        worker, mk_args = _run_weight,              lambda r: (r, args.bounds, wb, args.solver)
+        worker, mk_args = _run_weight,              lambda r, wm=None: (r, args.bounds, wb, args.solver, wm)
     else:
         worker, mk_args = _run_active,              lambda r: (r, args.bounds, args.solver)
 
     opts = []
-    if args.bounds: opts.append("bounds")
-    if args.pc:     opts.append("pc")
-    if args.seq:    opts.append("seq")
+    if args.bounds:  opts.append("bounds")
+    if args.pc:      opts.append("pc")
+    if args.seq:     opts.append("seq")
+    if args.cached:  opts.append("cached")
     print(f"solver: {args.solver}" + (f"  opts: {', '.join(opts)}" if opts else ""))
 
     table = _LiveTable(rounds, want_active=args.active, want_weight=args.weight, want_trail=args.trail)
@@ -291,16 +300,55 @@ def main() -> None:
             prev_weight = w_val
             table.update(r, active=a_val, weight=w_val,
                          trail_done=r in trail_res, elapsed=time.time() - t0)
+    elif args.cached and (args.weight or args.trail):
+        # Lazy submission: as each slot frees up, submit the next round with
+        # the best W_min available in the cache at that moment.
+        cache: dict[int, int] = {}
+        pending = list(rounds)
+        with ProcessPoolExecutor(max_workers=n_workers) as ex:
+            active_futures: dict = {}
+
+            def _submit(r: int) -> None:
+                wm = cache.get(r - 1)
+                fut = ex.submit(worker, mk_args(r, wm))
+                active_futures[fut] = r
+                table.mark_start(r)
+
+            for r in pending[:n_workers]:
+                _submit(r)
+            pending = pending[n_workers:]
+
+            signal.signal(signal.SIGTERM, lambda *_: _shutdown(ex))
+            try:
+                while active_futures:
+                    for fut in as_completed(active_futures):
+                        _, r, a, w, trail, elapsed = fut.result()
+                        del active_futures[fut]
+                        if w is not None:
+                            cache[r] = w
+                        if trail is not None:
+                            trail_res[r] = trail
+                        table.update(r, active=a, weight=w,
+                                     trail_done=trail is not None, elapsed=elapsed)
+                        if pending:
+                            _submit(pending.pop(0))
+                        break
+            except KeyboardInterrupt:
+                _shutdown(ex)
     else:
         with ProcessPoolExecutor(max_workers=n_workers) as ex:
             futures = {ex.submit(worker, mk_args(r)): r for r in rounds}
-            for r in rounds:
+            pending_starts = list(rounds)
+            for r in pending_starts[:n_workers]:
                 table.mark_start(r)
+            pending_starts = pending_starts[n_workers:]
             for res in _collect(ex, futures):
                 _, r, a, w, trail, elapsed = res
                 if trail is not None:
                     trail_res[r] = trail
                 table.update(r, active=a, weight=w, trail_done=trail is not None, elapsed=elapsed)
+                if pending_starts:
+                    table.mark_start(pending_starts.pop(0))
 
     stop_timer.set()
 
