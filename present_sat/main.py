@@ -25,78 +25,28 @@ def _init_worker(q):
     _worker_queue = q
 
 
-def _run_active(args):
-    """Worker: compute min active S-boxes for one round.
+def _run_worker(args):
+    """Worker: compute requested quantities for one round.
 
     Args:
-        args: tuple (r, solver) — round number and solver name.
+        args: tuple (r, solver, w_min, do_active, do_weight, do_trail).
     """
-    r, solver = args
+    r, solver, w_min, do_active, do_weight, do_trail = args
     t0 = time.time()
-    a = find_min_active_sbox(r, solver=solver)
-    return "active", r, a, None, None, time.time() - t0
-
-
-def _run_weight(args):
-    """Worker: compute min trail weight for one round.
-
-    Args:
-        args: tuple (r, solver, w_min) — round, solver, optional lower bound.
-    """
-    r, solver, w_min = args
-    t0 = time.time()
-    w = find_min_trail_weight(r, W_min=w_min, solver=solver, progress_queue=_worker_queue)
-    return "weight", r, None, w, None, time.time() - t0
-
-
-def _run_active_weight(args):
-    """Worker: compute both min active S-boxes and min trail weight for one round.
-
-    Args:
-        args: tuple (r, solver, w_min) — round, solver, optional weight lower bound.
-    """
-    r, solver, w_min = args
-    t0 = time.time()
-    a = find_min_active_sbox(r, solver=solver)
-    w = find_min_trail_weight(r, W_min=w_min, solver=solver, progress_queue=_worker_queue)
-    return "active_weight", r, a, w, None, time.time() - t0
-
-
-def _run_active_trail(args):
-    """Worker: compute min active S-boxes and extract an optimal trail for one round.
-
-    Args:
-        args: tuple (r, solver) — round number and solver name.
-    """
-    r, solver = args
-    t0 = time.time()
-    a, trail = find_min_active_sbox(r, solver=solver, return_trail=True)
-    return "active_trail", r, a, None, trail, time.time() - t0
-
-
-def _run_weight_trail(args):
-    """Worker: compute min trail weight and extract an optimal trail for one round.
-
-    Args:
-        args: tuple (r, solver, w_min) — round, solver, optional weight lower bound.
-    """
-    r, solver, w_min = args
-    t0 = time.time()
-    w, trail = find_min_trail_weight(r, W_min=w_min, solver=solver, return_trail=True, progress_queue=_worker_queue)
-    return "weight_trail", r, None, w, trail, time.time() - t0
-
-
-def _run_active_weight_trail(args):
-    """Worker: compute min active, min weight, and extract an optimal trail for one round.
-
-    Args:
-        args: tuple (r, solver, w_min) — round, solver, optional weight lower bound.
-    """
-    r, solver, w_min = args
-    t0 = time.time()
-    a = find_min_active_sbox(r, solver=solver)
-    w, trail = find_min_trail_weight(r, W_min=w_min, solver=solver, return_trail=True, progress_queue=_worker_queue)
-    return "active_weight_trail", r, a, w, trail, time.time() - t0
+    a = w = trail = None
+    if do_active:
+        if do_trail and not do_weight:
+            a, trail = find_min_active_sbox(r, solver=solver, return_trail=True)
+        else:
+            a = find_min_active_sbox(r, solver=solver)
+    if do_weight:
+        ret = find_min_trail_weight(r, W_min=w_min, solver=solver,
+                                    return_trail=do_trail, progress_queue=_worker_queue)
+        if do_trail:
+            w, trail = ret
+        else:
+            w = ret
+    return r, a, w, trail, time.time() - t0
 
 
 def _shutdown(ex):
@@ -150,20 +100,8 @@ def main():
     trail_res = {}
     pq = multiprocessing.Queue()
 
-    if args.trail and args.active and args.weight:
-        worker, mk_args = _run_active_weight_trail, lambda r, wm=None: (r, args.solver, wm)
-    elif args.trail and args.weight:
-        worker, mk_args = _run_weight_trail, lambda r, wm=None: (r, args.solver, wm)
-    elif args.trail and args.active:
-        worker, mk_args = _run_active_trail, lambda r: (r, args.solver)
-    elif args.trail:
-        worker, mk_args = _run_weight_trail, lambda r, wm=None: (r, args.solver, wm)
-    elif args.active and args.weight:
-        worker, mk_args = _run_active_weight, lambda r, wm=None: (r, args.solver, wm)
-    elif args.weight:
-        worker, mk_args = _run_weight, lambda r, wm=None: (r, args.solver, wm)
-    else:
-        worker, mk_args = _run_active, lambda r: (r, args.solver)
+    do_weight = args.weight or (args.trail and not args.active)
+    mk_args = lambda r, wm=None: (r, args.solver, wm, args.active, do_weight, args.trail)
 
     opts = []
     if args.seq:    opts.append("seq")
@@ -216,7 +154,7 @@ def main():
 
             def _submit(r):
                 wm = cache.get(r - 1)
-                fut = ex.submit(worker, mk_args(r, wm))
+                fut = ex.submit(_run_worker, mk_args(r, wm))
                 active_futures[fut] = r
                 table.mark_start(r)
 
@@ -228,7 +166,7 @@ def main():
             try:
                 while active_futures:
                     for fut in as_completed(active_futures):
-                        _, r, a, w, trail, elapsed = fut.result()
+                        r, a, w, trail, elapsed = fut.result()
                         del active_futures[fut]
                         if w is not None:
                             cache[r] = w
@@ -244,13 +182,13 @@ def main():
 
     else:
         with ProcessPoolExecutor(max_workers=n_workers, initializer=_init_worker, initargs=(pq,)) as ex:
-            futures = {ex.submit(worker, mk_args(r)): r for r in rounds}
+            futures = {ex.submit(_run_worker, mk_args(r)): r for r in rounds}
             pending_starts = list(rounds)
             for r in pending_starts[:n_workers]:
                 table.mark_start(r)
             pending_starts = pending_starts[n_workers:]
             for res in _collect(ex, futures):
-                _, r, a, w, trail, elapsed = res
+                r, a, w, trail, elapsed = res
                 if trail is not None:
                     trail_res[r] = trail
                 table.update(r, active=a, weight=w, trail_done=trail is not None, elapsed=elapsed)
