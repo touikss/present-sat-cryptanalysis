@@ -85,6 +85,7 @@ def find_min_active_sbox(
 
 def find_min_trail_weight(
     R: int,
+    W_min: int | None = None,
     W_max: int | None = None,
     use_bounds: bool = False,
     weight_bounds: dict[int, int] | None = None,
@@ -94,13 +95,14 @@ def find_min_trail_weight(
 ) -> int | tuple[int, list[int]]:
     """Find the minimum differential trail weight for R rounds.
 
-    Uses linear incremental search starting from 2*min_active.
+    Uses linear incremental search starting from max(2*min_active, W_min).
     With CaDiCaL, the solver is kept alive between iterations to reuse learned clauses.
     With Kissat, a fresh solver is created at each iteration (no assumption support).
     Weight per S-box = 2*active + heavy.
 
     Args:
         R: number of rounds.
+        W_min: optional lower bound for the search (e.g. weight of R-1 rounds).
         W_max: optional upper bound for the search (defaults to 3*min_active).
         use_bounds: if True, adds precomputed prefix active-sbox bounds.
         weight_bounds: optional dict mapping round count k to min trail weight,
@@ -109,8 +111,8 @@ def find_min_trail_weight(
         return_trail: if True, also return an optimal trail as a list of R+1 diff words.
     """
     min_k = find_min_active_sbox(R, use_bounds=use_bounds, solver=solver)
-    lo = 2 * min_k
-    hi = W_max if W_max is not None else 3 * min_k
+    lo = max(2 * min_k, W_min) if W_min is not None else 2 * min_k
+    hi = W_max if W_max is not None else max(3 * min_k, lo + 16)
 
     abounds = ACTIVE_BOUNDS if use_bounds else None
 
