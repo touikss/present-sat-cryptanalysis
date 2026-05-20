@@ -39,9 +39,6 @@ def find_min_active_sbox(R, solver="kissat", *, return_trail=False):
         solver: SAT solver to use, either 'cadical' or 'kissat'.
         return_trail: if True, also return an optimal trail as a list of R+1 difference words.
     """
-    if not return_trail and R in ACTIVE_BOUNDS:
-        return ACTIVE_BOUNDS[R]
-
     base = build_model(R)
     lits = [active_var(R, r, s) for r in range(R) for s in range(16)]
 
@@ -105,7 +102,7 @@ def find_min_trail_weight(R, W_min=None, solver="kissat", *, return_trail=False,
         return_trail: if True, also return an optimal trail as a list of R+1 difference words.
         progress_queue: optional multiprocessing.Queue to send (R, W) progress updates.
     """
-    min_k = find_min_active_sbox(R, solver=solver)
+    min_k = ACTIVE_BOUNDS[R] if R in ACTIVE_BOUNDS else find_min_active_sbox(R, solver=solver)
 
     # output diff is non-zero, so adding a round adds at least weight 2
     # => weight[R] >= weight[R-1] + 2, use WEIGHT_BOUNDS as fallback when W_min not given
