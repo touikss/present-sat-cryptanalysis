@@ -8,7 +8,7 @@ import threading
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from .search import find_min_active_sbox, find_min_trail_weight, SOLVERS
-from .table import LiveTable, print_trails, _IS_TTY
+from .display import LiveTable, print_trails, _IS_TTY
 
 
 # workers run in child processes, _worker_queue is set via initializer

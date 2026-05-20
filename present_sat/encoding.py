@@ -1,5 +1,6 @@
 from pysat.formula import CNF
 from pysat.pb import PBEnc
+from math import log2
 
 from .present import P, DDT
 
@@ -302,3 +303,37 @@ def decode_trail(model, R):
                 val |= (1 << i)
         diffs.append(val)
     return diffs
+
+def trail_weight(trail):
+    total = 0
+    for r in range(len(trail) - 1):
+        d_in = trail[r]
+        d_out_after_sbox = 0
+
+        d_out = trail[r + 1]
+        sbox_out = 0
+        for i in range(64):
+            if (d_out >> P[i]) & 1:
+                sbox_out |= 1 << i
+
+        for s in range(16):
+            a = (d_in >> (4 * s)) & 0xF
+            b = (sbox_out >> (4 * s)) & 0xF
+            count = DDT[a][b]
+            if count == 0:
+                return None  # transition impossible
+            if a == 0:
+                continue  # transition triviale, poids 0
+            total += -log2(count / 16)
+
+    return total
+
+
+def trail_active_sboxes(trail):
+    total = 0
+    for r in range(len(trail) - 1):
+        d_in = trail[r]
+        for s in range(16):
+            if (d_in >> (4 * s)) & 0xF:
+                total += 1
+    return total
