@@ -128,7 +128,7 @@ def find_min_trail_weight(R, W_min=None, solver="kissat", *, return_trail=False,
                     s.add_clause([-act] + clause)
                 top = pb.nv
                 if s.solve(assumptions=[act]):
-                    return W, decode_trail(s.get_model(), R) if return_trail else W
+                    return (W, decode_trail(s.get_model(), R)) if return_trail else W
     else:
         for W in range(lo, hi + 1):
             if progress_queue is not None:
@@ -136,6 +136,6 @@ def find_min_trail_weight(R, W_min=None, solver="kissat", *, return_trail=False,
             base = build_weighted_model(R, W=W)
             with Kissat404(bootstrap_with=base.clauses) as s:
                 if s.solve():
-                    return W, decode_trail(s.get_model(), R) if return_trail else W
+                    return (W, decode_trail(s.get_model(), R)) if return_trail else W
 
     return (hi, []) if return_trail else hi
