@@ -135,4 +135,7 @@ def find_min_trail_weight(R, W_min=None, solver="kissat", *, return_trail=False,
                 if s.solve():
                     return (W, decode_trail(s.get_model(), R)) if return_trail else W
 
-    return (hi, []) if return_trail else hi
+    raise RuntimeError(
+        f"find_min_trail_weight: no SAT in range [{lo}, {hi}] for R={R}. "
+        "Increase hi or check the model."
+    )
