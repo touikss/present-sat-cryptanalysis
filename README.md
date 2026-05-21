@@ -1,4 +1,4 @@
-# PRESENT Differential Trail Search - SAT Encoding
+# PRESENT: Cryptanalyse differentielle par SAT
 
 Projet F2 du cours **Programmation par Contraintes** (EPITA SCIA 2026).
 
