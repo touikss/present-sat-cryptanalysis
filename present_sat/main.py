@@ -1,6 +1,8 @@
 import argparse
+import json
 import multiprocessing
 import os
+import pathlib
 import signal
 import sys
 import time
@@ -8,7 +10,9 @@ import threading
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from .search import find_min_active_sbox, find_min_trail_weight, SOLVERS
-from .display import LiveTable, print_trails, _IS_TTY
+from .display import LiveTable, print_trails, print_benchmark, _IS_TTY
+
+_DEFAULT_BENCHMARK = pathlib.Path(__file__).parent.parent / "benchmark.json"
 
 
 # workers run in child processes, _worker_queue is set via initializer
@@ -89,7 +93,18 @@ def main():
     parser.add_argument("--cached",  action="store_true", help="parallel: pass cached weight[R-1] as lower bound when available")
     parser.add_argument("--workers", type=int, default=None)
     parser.add_argument("--solver", choices=list(SOLVERS), default="kissat")
+    parser.add_argument("--benchmark", metavar="FILE", nargs="?", const=str(_DEFAULT_BENCHMARK),
+                        help="display saved benchmark results (default: benchmark.json)")
     args = parser.parse_args()
+
+    if args.benchmark is not None:
+        path = pathlib.Path(args.benchmark)
+        if not path.exists():
+            parser.error(f"benchmark file not found: {path}")
+        with open(path) as f:
+            data = json.load(f)
+        print_benchmark(data)
+        return
 
     if not (args.active or args.weight or args.trail):
         parser.error("at least one of --active, --weight, --trail is required")

@@ -32,15 +32,14 @@ class LiveTable:
         self.trail_done = set()
         self._drawn = 0
         self._lock = threading.Lock()
-        self._printed_rows = set()   # non-TTY: rows already printed
-        self._header_printed = False # non-TTY: header already printed
+        self._printed_rows = set()
+        self._header_printed = False
 
     def mark_start(self, r):
         with self._lock:
             self.start_times[r] = time.time()
 
     def set_testing(self, r, w):
-        # Only update state; the timer thread handles periodic redraws.
         with self._lock:
             self.testing[r] = w
 
@@ -119,7 +118,6 @@ class LiveTable:
             sys.stdout.flush()
             self._drawn = len(lines)
         else:
-            # Print header once, then each completed row exactly once.
             if not self._header_printed:
                 sys.stdout.write(lines[0] + "\n")
                 sys.stdout.write(lines[1] + "\n")
@@ -131,6 +129,75 @@ class LiveTable:
                     sys.stdout.write(lines[row_idx] + "\n")
                     sys.stdout.flush()
                     self._printed_rows.add(r)
+
+
+def print_benchmark(data: dict):
+    """Display benchmark.json data as formatted tables.
+
+    Args:
+        data: parsed benchmark.json dict.
+    """
+    active_solvers = [k for k in ("min_active_kissat", "min_active_cadical") if k in data]
+    if active_solvers:
+        print("Min active S-boxes")
+        solvers_short = [k.replace("min_active_", "") for k in active_solvers]
+        header_parts = [f"{'R':>3}"]
+        for s in solvers_short:
+            header_parts += [f"{'min_active':>12}", f"{'time(s)':>9}"]
+        separator_parts = [f"{'solver':>3}"]
+        for s in solvers_short:
+            separator_parts += [f"{s:>12}", f"{'':>9}"]
+        header = "  ".join(header_parts)
+        solver_row = "  ".join(separator_parts)
+        print(solver_row)
+        print(header)
+        print("-" * len(header))
+        all_rounds = sorted(
+            {int(r) for k in active_solvers for r in data[k]}, key=int
+        )
+        for r in all_rounds:
+            row = [f"{r:>3}"]
+            for k in active_solvers:
+                entry = data[k].get(str(r))
+                if entry:
+                    row += [f"{entry['min_active']:>12}", f"{entry['time']:>9.3f}"]
+                else:
+                    row += [f"{'—':>12}", f"{'—':>9}"]
+            print("  ".join(row))
+        print()
+
+    weight_solvers = [
+        ("min_weight_kissat_seq", "kissat-seq"),
+        ("min_weight_kissat",      "kissat"),
+        ("min_weight_cadical",     "cadical"),
+    ]
+    weight_solvers = [(k, label) for k, label in weight_solvers if k in data]
+    if weight_solvers:
+        print("Min trail weight")
+        header_parts = [f"{'R':>3}"]
+        for _, label in weight_solvers:
+            header_parts += [f"{'min_weight':>12}", f"{'time(s)':>10}"]
+        solver_parts = [f"{'solver':>3}"]
+        for _, label in weight_solvers:
+            solver_parts += [f"{label:>12}", f"{'':>10}"]
+        header = "  ".join(header_parts)
+        solver_row = "  ".join(solver_parts)
+        print(solver_row)
+        print(header)
+        print("-" * len(header))
+        all_rounds = sorted(
+            {int(r) for k, _ in weight_solvers for r in data[k]}, key=int
+        )
+        for r in all_rounds:
+            row = [f"{r:>3}"]
+            for k, _ in weight_solvers:
+                entry = data[k].get(str(r))
+                if entry:
+                    row += [f"{entry['min_weight']:>12}", f"{entry['time']:>10.3f}"]
+                else:
+                    row += [f"{'—':>12}", f"{'—':>10}"]
+            print("  ".join(row))
+        print()
 
 
 def print_trails(trail_res):
