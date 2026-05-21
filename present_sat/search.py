@@ -96,18 +96,15 @@ def find_min_trail_weight(R, W_min=None, solver="kissat", *, return_trail=False,
 
     Args:
         R: number of rounds.
-        W_min: optional lower bound (e.g. weight[R-1] from a previous run).
-               WEIGHT_BOUNDS[R-1] is used as fallback when W_min is None.
+        W_min: optional lower bound on the weight, passed by --seq or --cached modes
+               (typically weight[R-1]). When None, lo = 2 * min_active[R].
         solver: SAT solver to use, either 'cadical' or 'kissat'.
         return_trail: if True, also return an optimal trail as a list of R+1 difference words.
         progress_queue: optional multiprocessing.Queue to send (R, W) progress updates.
     """
     min_k = ACTIVE_BOUNDS[R] if R in ACTIVE_BOUNDS else find_min_active_sbox(R, solver=solver)
 
-    # output diff is non-zero, so adding a round adds at least weight 2
-    # => weight[R] >= weight[R-1] + 2, use WEIGHT_BOUNDS as fallback when W_min not given
-    prev = W_min if W_min is not None else WEIGHT_BOUNDS.get(R - 1)
-    lo = max(2 * min_k, prev + 2) if prev is not None else 2 * min_k
+    lo = max(2 * min_k, W_min + 2) if W_min is not None else 2 * min_k
     hi = max(3 * min_k, lo + 16)
 
     if solver == "cadical":

@@ -9,7 +9,7 @@ import time
 import threading
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from .search import find_min_active_sbox, find_min_trail_weight, SOLVERS
+from .search import find_min_active_sbox, find_min_trail_weight, SOLVERS, WEIGHT_BOUNDS
 from .display import LiveTable, print_trails, print_benchmark, _IS_TTY
 
 _DEFAULT_BENCHMARK = pathlib.Path(__file__).parent.parent / "benchmark.json"
@@ -144,7 +144,7 @@ def main():
     threading.Thread(target=_progress_reader, daemon=True).start()
 
     if args.seq and (args.weight or args.trail):
-        prev_weight = None
+        prev_weight = WEIGHT_BOUNDS.get(rounds[0] - 1)
         for r in rounds:
             table.mark_start(r)
             t0 = time.time()
@@ -167,7 +167,7 @@ def main():
             active_futures = {}
 
             def _submit(r):
-                wm = cache.get(r - 1)
+                wm = cache.get(r - 1, WEIGHT_BOUNDS.get(r - 1))
                 fut = ex.submit(_run_worker, mk_args(r, wm))
                 active_futures[fut] = r
                 table.mark_start(r)
