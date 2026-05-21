@@ -84,17 +84,16 @@ def _collect(ex, futures):
 
 def main():
     parser = argparse.ArgumentParser(description="PRESENT differential trail search")
-    parser.add_argument("--rmin", type=int, default=1)
-    parser.add_argument("--rmax", type=int, default=10)
-    parser.add_argument("--active", action="store_true")
-    parser.add_argument("--weight", action="store_true")
-    parser.add_argument("--trail", action="store_true")
-    parser.add_argument("--seq", action="store_true", help="sequential: use weight[R-1] as lower bound for weight[R]")
-    parser.add_argument("--cached",  action="store_true", help="parallel: pass cached weight[R-1] as lower bound when available")
-    parser.add_argument("--workers", type=int, default=None)
-    parser.add_argument("--solver", choices=list(SOLVERS), default="kissat")
-    parser.add_argument("--benchmark", metavar="FILE", nargs="?", const=str(_DEFAULT_BENCHMARK),
-                        help="display saved benchmark results (default: benchmark.json)")
+    parser.add_argument("--rmin", type=int, default=1, help="first round to compute (default: 1)")
+    parser.add_argument("--rmax", type=int, default=10, help="last round to compute (default: 10)")
+    parser.add_argument("--active", action="store_true", help="find the minimum number of active S-boxes per round")
+    parser.add_argument("--weight", action="store_true", help="find the minimum differential trail weight per round")
+    parser.add_argument("--trail", action="store_true", help="recover and print an optimal differential trail per round")
+    parser.add_argument("--seq", action="store_true", help="sequential mode: use weight[R-1] as lower bound for weight[R] (only 1 worker used)")
+    parser.add_argument("--cached", action="store_true", help="parallel mode: use cached weight[R-1] as lower bound for weight[R] (multiple workers used)")
+    parser.add_argument("--workers", type=int, default=None, help="number of parallel worker processes (default: cpu_count / 3)")
+    parser.add_argument("--solver", choices=list(SOLVERS), default="kissat", help="SAT solver backend (default: kissat)")
+    parser.add_argument("--benchmark", metavar="FILE", nargs="?", const=str(_DEFAULT_BENCHMARK), help="display saved benchmark results (default: benchmark.json)")
     args = parser.parse_args()
 
     if args.benchmark is not None:
