@@ -32,7 +32,7 @@ def find_min_active_sbox(R, solver="kissat", *, return_trail=False):
 
     Uses binary search with a cardinality constraint (at-most k active S-boxes).
     CaDiCaL reuses learned clauses across iterations; Kissat creates a fresh solver each time.
-    Returns the cached value from ACTIVE_BOUNDS when available and return_trail is False.
+    Always runs the SAT solver; ACTIVE_BOUNDS is used only by find_min_trail_weight.
 
     Args:
         R: number of rounds.

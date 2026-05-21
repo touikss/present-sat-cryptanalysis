@@ -8,8 +8,8 @@ from .present import P, DDT
 def _compute_pi_clauses(valid, invalid, nbits):
     """Quine-McCluskey minimization over an nbits-wide boolean space.
 
-    Returns a minimal set of clause templates (prime implicants) that cover
-    all invalid minterms without covering any valid ones.
+    Returns a greedy-minimal covering set of clause templates (prime implicants)
+    that cover all invalid minterms without covering any valid ones.
 
     Args:
         valid: set of valid minterms (must not be covered).
@@ -305,11 +305,18 @@ def decode_trail(model, R):
     return diffs
 
 def trail_weight(trail):
+    """Compute the exact weight of a differential trail.
+
+    Inverts the permutation layer to recover each S-box output difference, then
+    sums -log2(DDT[a][b] / 16) over all active S-boxes. Returns None if any
+    transition is DDT-invalid (count == 0).
+
+    Args:
+        trail: list of R+1 64-bit difference words as returned by decode_trail.
+    """
     total = 0
     for r in range(len(trail) - 1):
         d_in = trail[r]
-        d_out_after_sbox = 0
-
         d_out = trail[r + 1]
         sbox_out = 0
         for i in range(64):
@@ -321,15 +328,20 @@ def trail_weight(trail):
             b = (sbox_out >> (4 * s)) & 0xF
             count = DDT[a][b]
             if count == 0:
-                return None  # transition impossible
+                return None
             if a == 0:
-                continue  # transition triviale, poids 0
+                continue
             total += -log2(count / 16)
 
     return total
 
 
 def trail_active_sboxes(trail):
+    """Count the total number of active S-boxes across all rounds of a trail.
+
+    Args:
+        trail: list of R+1 64-bit difference words as returned by decode_trail.
+    """
     total = 0
     for r in range(len(trail) - 1):
         d_in = trail[r]
