@@ -251,7 +251,7 @@
             "time": 279.146
         }
     },
-    "min_weight_kissat_opti": {
+    "min_weight_kissat_seq": {
         "1": {
             "min_weight": 2,
             "time": 0.006
