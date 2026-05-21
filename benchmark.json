@@ -457,6 +457,14 @@
         "20": {
             "min_weight": 86,
             "time": 1024.995
+        },
+        "21": {
+            "min_weight": 90,
+            "time": 4554.814
+        },
+        "22": {
+            "min_weight": 96,
+            "time": 15152.194
         }
     },
     "min_weight_cadical": {
@@ -543,6 +551,10 @@
         "21": {
             "min_weight": 90,
             "time": 5552.819
+        },
+        "22": {
+            "min_weight": 96,
+            "time": 21452.494
         }
     }
 }
