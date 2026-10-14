@@ -8,7 +8,6 @@ from pysat.solvers import Cadical195, Kissat404
 
 from .encoding import _weight_lits_weights, active_var, build_model, build_weighted_model, decode_trail
 
-# Known minimum active S-box counts for PRESENT (from the literature).
 ACTIVE_BOUNDS = {
     1: 1,
     2: 2,
@@ -43,8 +42,6 @@ ACTIVE_BOUNDS = {
     31: 62,
 }
 
-# Known minimum trail weights for PRESENT (from the literature).
-# Used as a lower bound: weight[R] >= WEIGHT_BOUNDS[R-1] + 2.
 WEIGHT_BOUNDS = {
     1: 2,
     2: 4,

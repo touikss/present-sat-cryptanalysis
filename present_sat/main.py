@@ -16,7 +16,6 @@ from .search import SOLVERS, WEIGHT_BOUNDS, find_min_active_sbox, find_min_trail
 _DEFAULT_BENCHMARK = pathlib.Path(__file__).parent.parent / "benchmark.json"
 
 
-# workers run in child processes, _worker_queue is set via initializer
 _worker_queue = None
 
 
@@ -175,7 +174,7 @@ def main():
             except queue.Empty:
                 pass
             except (OSError, ValueError, EOFError):
-                break  # queue closed during shutdown
+                break
 
     threading.Thread(target=_progress_reader, daemon=True).start()
 

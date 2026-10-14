@@ -49,7 +49,6 @@ def test_sbox_weight_clauses_encode_active_and_heavy_flags():
         assert _satisfied(clauses, assignment) == expected, (a, b, active, heavy)
 
 
-# 2-round trail: one active S-box in round 0, two in round 1, each transition 1 -> 3 (DDT value 4, weight 2).
 TRAIL_2R = [0x1, 0x1 | (1 << 16), 0x1 | (1 << 16) | (1 << 4) | (1 << 20)]
 
 
@@ -83,7 +82,6 @@ def test_models_accept_valid_trail_and_decode_roundtrip():
 
 
 def test_models_reject_ddt_invalid_one_round_trail():
-    # Input difference 1 can never produce output difference 1 (DDT[1][1] == 0).
     invalid = [0x1, 0x1]
     assert not validate_trail(invalid, 1)
     assignment = _assignment_for_trail(invalid, 1)
