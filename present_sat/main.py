@@ -93,10 +93,11 @@ def main():
     parser.add_argument("--trail", action="store_true",
                         help="recover and print an optimal differential trail per round")
     parser.add_argument("--seq", action="store_true",
-                        help="sequential mode: use weight[R-1] as lower bound for weight[R] (only 1 worker used)")
+                        help="sequential mode: use weight[R-1] as lower bound for weight[R] (only 1 worker used; "
+                             "requires --weight or --trail)")
     parser.add_argument("--cached", action="store_true",
                         help="parallel mode: use cached weight[R-1] as lower bound for weight[R] "
-                             "(multiple workers used)")
+                             "(multiple workers used; requires --weight or --trail)")
     parser.add_argument("--workers", type=int, default=None,
                         help="number of parallel worker processes (default: cpu_count / 3)")
     parser.add_argument("--solver", choices=list(SOLVERS), default="kissat",
@@ -116,6 +117,10 @@ def main():
 
     if not (args.active or args.weight or args.trail):
         parser.error("at least one of --active, --weight, --trail is required")
+
+    if (args.seq or args.cached) and not (args.weight or args.trail):
+        flag = "--seq" if args.seq else "--cached"
+        parser.error(f"{flag} requires --weight or --trail (it only applies to the weight search)")
 
     rounds = list(range(args.rmin, args.rmax + 1))
     n_workers = max(1, min(len(rounds), args.workers or max(1, os.cpu_count() // 3)))

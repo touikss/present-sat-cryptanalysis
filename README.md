@@ -178,3 +178,7 @@ uv run ruff check .
 - C. Zhou, W. Zhang, T. Ding, Z. Xiang,
   [Improving the MILP-based Security Evaluation Algorithm against Differential/Linear Cryptanalysis Using A Divide-and-Conquer Approach](https://doi.org/10.13154/tosc.v2019.i4.438-469),
   IACR ToSC 2019(4). Reference minimum active S-box counts.
+
+## License
+
+Code: [MIT](LICENSE).
