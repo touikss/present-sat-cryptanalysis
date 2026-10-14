@@ -1,8 +1,9 @@
-from pysat.formula import CNF
-from pysat.pb import PBEnc
 from math import log2
 
-from .present import P, DDT
+from pysat.formula import CNF
+from pysat.pb import PBEnc
+
+from .present import DDT, P
 
 
 def _compute_pi_clauses(valid, invalid, nbits):

@@ -1,7 +1,7 @@
 [project]
-name = "ppc-project"
+name = "present-sat-cryptanalysis"
 version = "0.1.0"
-description = "Add your description here"
+description = "Optimal differential trail search on PRESENT via SAT encoding (Kissat, CaDiCaL)"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -13,3 +13,21 @@ dependencies = [
     "pypblib>=0.0.4",
     "python-sat>=1.9.dev2",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+extend-exclude = ["notebook.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]

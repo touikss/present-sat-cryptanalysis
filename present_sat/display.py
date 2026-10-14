@@ -45,10 +45,14 @@ class LiveTable:
 
     def update(self, r, *, active=None, weight=None, trail_done=False, elapsed=None):
         with self._lock:
-            if active is not None: self.active[r] = active
-            if weight is not None: self.weight[r] = weight
-            if elapsed is not None: self.times[r] = elapsed
-            if trail_done: self.trail_done.add(r)
+            if active is not None:
+                self.active[r] = active
+            if weight is not None:
+                self.weight[r] = weight
+            if elapsed is not None:
+                self.times[r] = elapsed
+            if trail_done:
+                self.trail_done.add(r)
             self._redraw_locked()
 
     def _build(self):

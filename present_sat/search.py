@@ -1,8 +1,8 @@
-from pysat.solvers import Cadical195, Kissat404
 from pysat.card import CardEnc, EncType
 from pysat.pb import PBEnc
+from pysat.solvers import Cadical195, Kissat404
 
-from .encoding import active_var, build_model, build_weighted_model, _weight_lits_weights, decode_trail
+from .encoding import _weight_lits_weights, active_var, build_model, build_weighted_model, decode_trail
 
 # Known minimum active S-box counts for PRESENT (from the literature).
 ACTIVE_BOUNDS = {
