@@ -5,8 +5,12 @@ block cipher, by encoding the problem as SAT/CNF and solving it with **Kissat** 
 For each number of rounds R = 1..31 it finds the minimum number of active S-boxes and the minimum trail weight
 (trail probability = 2^-weight), and can print an optimal trail.
 
+It doubles as a small controlled comparison: three solver configurations (Kissat, CaDiCaL, and Kissat with a
+sequential lower bound) run on the same instances, every minimum is checked against published values, and the
+limitations of the measurements are listed [below](#limitations).
+
 Originally a course project (EPITA, Constraint Programming, 2026). Slides (in French): [slides.pdf](slides.pdf).
-The analysis notebook ([notebook.ipynb](notebook.ipynb)) is written in French.
+The analysis notebook ([notebook.ipynb](notebook.ipynb)) is written in English.
 
 ![Minimum trail weight and solve times](images/benchmark.png)
 
@@ -83,6 +87,14 @@ Selected rounds (full table at the end of this section):
 
 </details>
 
+## Limitations
+
+- **One run per configuration, hardware not recorded.** Timings are indicative: single runs are noisy (R = 20 is faster than R = 19 for all solvers), so only large ratios are meaningful.
+- **Partial coverage.** Plain `kissat` and `cadical` stop at R = 22; the R = 23..31 results come from `kissat-seq` alone, and the speed-up figures cover R = 1..22 only.
+- **Literature tables as starting bounds.** The default lower bound `2 x min_active[R]` and the first bound of `--seq` / `--cached` come from `ACTIVE_BOUNDS` / `WEIGHT_BOUNDS` in `search.py`. The search then goes upward linearly, so the first satisfiable weight is the minimum only if the starting bound is valid. The active S-box counts were also recomputed by the SAT solvers (Kissat and CaDiCaL agree), and the tests recompute the minimum weights for R <= 4 with the tables emptied.
+- **Agreement with the literature is a validation, not a proof of the encoding.** The encoding is checked against the DDT, the official PRESENT test vectors and a direct evaluation of the clauses (see the tests), but not formally verified.
+- **Environment.** Requires `python-sat >= 1.9.dev2` (a development pre-release, pinned in `uv.lock`) for the Kissat backend; Unix only (signal handling in the CLI).
+
 ## How it works
 
 - Each PRESENT round is encoded in CNF: the S-box through its difference distribution table (DDT), reduced to
@@ -100,7 +112,7 @@ present_sat/
   search.py     min active S-boxes (binary search) and min trail weight (linear search)
   display.py    live terminal table and benchmark rendering
   main.py       CLI
-tests/          pytest suite (no SAT solver needed)
+tests/          pytest suite (cipher, encoding, CLI, SAT searches on small R)
 scripts/        plot_benchmark.py
 benchmark.json  precomputed results (kissat-seq R=1..31, kissat and cadical R=1..22)
 ```
@@ -161,7 +173,7 @@ the initial bound of `--seq` / `--cached`, `weight[R-1]` come from the known val
 ## Tests and lint
 
 ```bash
-uv run pytest      # S-box, DDT, bit permutation, official test vectors, one-round CNF encoding
+uv run pytest      # S-box, DDT, permutation, official test vectors, CNF encoding, SAT searches for R <= 5 (~7 s)
 uv run ruff check .
 ```
 
