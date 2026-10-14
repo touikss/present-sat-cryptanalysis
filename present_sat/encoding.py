@@ -169,10 +169,7 @@ def _apply_templates(templates, all_vars):
         templates: list of clause templates, each a list of (bit_index, is_positive) pairs.
         all_vars: list of SAT variable indices indexed by bit position.
     """
-    return [
-        [all_vars[i] if pos else -all_vars[i] for i, pos in template]
-        for template in templates
-    ]
+    return [[all_vars[i] if pos else -all_vars[i] for i, pos in template] for template in templates]
 
 
 def sbox_clauses_compact(x_vars, y_vars):
@@ -301,9 +298,10 @@ def decode_trail(model, R):
         val = 0
         for i in range(64):
             if diff_var(r, i) in pos:
-                val |= (1 << i)
+                val |= 1 << i
         diffs.append(val)
     return diffs
+
 
 def trail_weight(trail):
     """Compute the exact weight of a differential trail.

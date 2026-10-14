@@ -2,10 +2,72 @@ import numpy as np
 
 SBOX: list[int] = [0xC, 0x5, 0x6, 0xB, 0x9, 0x0, 0xA, 0xD, 0x3, 0xE, 0xF, 0x8, 0x4, 0x7, 0x1, 0x2]
 
-P: list[int] = [ 0, 16, 32, 48,  1, 17, 33, 49,  2, 18, 34, 50,  3, 19, 35, 51,
-                 4, 20, 36, 52,  5, 21, 37, 53,  6, 22, 38, 54,  7, 23, 39, 55,
-                 8, 24, 40, 56,  9, 25, 41, 57, 10, 26, 42, 58, 11, 27, 43, 59,
-                12, 28, 44, 60, 13, 29, 45, 61, 14, 30, 46, 62, 15, 31, 47, 63]
+P: list[int] = [
+    0,
+    16,
+    32,
+    48,
+    1,
+    17,
+    33,
+    49,
+    2,
+    18,
+    34,
+    50,
+    3,
+    19,
+    35,
+    51,
+    4,
+    20,
+    36,
+    52,
+    5,
+    21,
+    37,
+    53,
+    6,
+    22,
+    38,
+    54,
+    7,
+    23,
+    39,
+    55,
+    8,
+    24,
+    40,
+    56,
+    9,
+    25,
+    41,
+    57,
+    10,
+    26,
+    42,
+    58,
+    11,
+    27,
+    43,
+    59,
+    12,
+    28,
+    44,
+    60,
+    13,
+    29,
+    45,
+    61,
+    14,
+    30,
+    46,
+    62,
+    15,
+    31,
+    47,
+    63,
+]
 
 
 def generate_round_keys(key: int) -> list[int]:
@@ -17,9 +79,9 @@ def generate_round_keys(key: int) -> list[int]:
     keys = [key]
     k = key
     for i in range(1, 32):
-        k = (k >> 19) | ((k << 61) & 0xffffffffffffffffffff)
-        head = (k >> 76) & 0xf
-        k = (k & 0xfffffffffffffffffff) | (SBOX[head] << 76)
+        k = (k >> 19) | ((k << 61) & 0xFFFFFFFFFFFFFFFFFFFF)
+        head = (k >> 76) & 0xF
+        k = (k & 0xFFFFFFFFFFFFFFFFFFF) | (SBOX[head] << 76)
         k ^= i << 15
         keys.append(k)
     return keys
@@ -43,7 +105,7 @@ def sbox_layer(state: int) -> int:
     """
     result = 0
     for i in range(16):
-        result |= SBOX[(state >> (4 * i)) & 0xf] << (4 * i)
+        result |= SBOX[(state >> (4 * i)) & 0xF] << (4 * i)
     return result
 
 
@@ -101,7 +163,7 @@ def validate_trail(deltas: list[int], R: int) -> bool:
     for r in range(R):
         din, dout = deltas[r], deltas[r + 1]
         for s in range(16):
-            in_nib  = (din >> (4 * s)) & 0xF
+            in_nib = (din >> (4 * s)) & 0xF
             out_nib = sum(((dout >> P[4 * s + j]) & 1) << j for j in range(4))
             if DDT[in_nib][out_nib] == 0:
                 return False

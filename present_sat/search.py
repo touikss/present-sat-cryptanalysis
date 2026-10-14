@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from multiprocessing import Queue
+
 from pysat.card import CardEnc, EncType
 from pysat.pb import PBEnc
 from pysat.solvers import Cadical195, Kissat404
@@ -6,19 +10,73 @@ from .encoding import _weight_lits_weights, active_var, build_model, build_weigh
 
 # Known minimum active S-box counts for PRESENT (from the literature).
 ACTIVE_BOUNDS = {
-    1: 1,   2: 2,   3: 4,   4: 6,   5: 10,  6: 12,  7: 14,  8: 16,  9: 18,  10: 20,
-    11: 22, 12: 24, 13: 26, 14: 28, 15: 30, 16: 32, 17: 34, 18: 36, 19: 38, 20: 40,
-    21: 42, 22: 44, 23: 46, 24: 48, 25: 50, 26: 52, 27: 54, 28: 56, 29: 58, 30: 60,
+    1: 1,
+    2: 2,
+    3: 4,
+    4: 6,
+    5: 10,
+    6: 12,
+    7: 14,
+    8: 16,
+    9: 18,
+    10: 20,
+    11: 22,
+    12: 24,
+    13: 26,
+    14: 28,
+    15: 30,
+    16: 32,
+    17: 34,
+    18: 36,
+    19: 38,
+    20: 40,
+    21: 42,
+    22: 44,
+    23: 46,
+    24: 48,
+    25: 50,
+    26: 52,
+    27: 54,
+    28: 56,
+    29: 58,
+    30: 60,
     31: 62,
 }
 
 # Known minimum trail weights for PRESENT (from the literature).
 # Used as a lower bound: weight[R] >= WEIGHT_BOUNDS[R-1] + 2.
 WEIGHT_BOUNDS = {
-    1: 2, 2: 4, 3: 8, 4: 12, 5: 20, 6: 24,  7: 28,  8: 32,  9: 36,  10: 41,
-    11: 46, 12: 52, 13: 56, 14: 62, 15: 66, 16: 70, 17: 74, 18: 78, 19: 82, 20: 86,
-    21: 90, 22: 96, 23: 100, 24: 106, 25: 110, 26: 116, 27: 120, 28: 124, 29: 128,
-    30: 132, 31: 136,
+    1: 2,
+    2: 4,
+    3: 8,
+    4: 12,
+    5: 20,
+    6: 24,
+    7: 28,
+    8: 32,
+    9: 36,
+    10: 41,
+    11: 46,
+    12: 52,
+    13: 56,
+    14: 62,
+    15: 66,
+    16: 70,
+    17: 74,
+    18: 78,
+    19: 82,
+    20: 86,
+    21: 90,
+    22: 96,
+    23: 100,
+    24: 106,
+    25: 110,
+    26: 116,
+    27: 120,
+    28: 124,
+    29: 128,
+    30: 132,
+    31: 136,
 }
 
 SOLVERS = {
@@ -27,7 +85,7 @@ SOLVERS = {
 }
 
 
-def find_min_active_sbox(R, solver="kissat", *, return_trail=False):
+def find_min_active_sbox(R: int, solver: str = "kissat", *, return_trail: bool = False) -> int | tuple[int, list[int]]:
     """Find the minimum number of active S-boxes in any R-round differential trail.
 
     Uses binary search with a cardinality constraint (at-most k active S-boxes).
@@ -87,7 +145,14 @@ def find_min_active_sbox(R, solver="kissat", *, return_trail=False):
             return lo, decode_trail(s.get_model(), R)
 
 
-def find_min_trail_weight(R, W_min=None, solver="kissat", *, return_trail=False, progress_queue=None):
+def find_min_trail_weight(
+    R: int,
+    W_min: int | None = None,
+    solver: str = "kissat",
+    *,
+    return_trail: bool = False,
+    progress_queue: Queue | None = None,
+) -> int | tuple[int, list[int]]:
     """Find the minimum differential trail weight for R rounds.
 
     First computes min_active, then does a linear search from lo upward.
@@ -133,6 +198,5 @@ def find_min_trail_weight(R, W_min=None, solver="kissat", *, return_trail=False,
                     return (W, decode_trail(s.get_model(), R)) if return_trail else W
 
     raise RuntimeError(
-        f"find_min_trail_weight: no SAT in range [{lo}, {hi}] for R={R}. "
-        "Increase hi or check the model."
+        f"find_min_trail_weight: no SAT in range [{lo}, {hi}] for R={R}. Increase hi or check the model."
     )

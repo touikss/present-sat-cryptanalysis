@@ -3,6 +3,7 @@ import json
 import multiprocessing
 import os
 import pathlib
+import queue
 import signal
 import sys
 import threading
@@ -44,8 +45,7 @@ def _run_worker(args):
         else:
             a = find_min_active_sbox(r, solver=solver)
     if do_weight:
-        ret = find_min_trail_weight(r, W_min=w_min, solver=solver,
-                                    return_trail=do_trail, progress_queue=_worker_queue)
+        ret = find_min_trail_weight(r, W_min=w_min, solver=solver, return_trail=do_trail, progress_queue=_worker_queue)
         if do_trail:
             w, trail = ret
         else:
@@ -86,24 +86,36 @@ def main():
     parser = argparse.ArgumentParser(description="PRESENT differential trail search")
     parser.add_argument("--rmin", type=int, default=1, help="first round to compute (default: 1)")
     parser.add_argument("--rmax", type=int, default=10, help="last round to compute (default: 10)")
-    parser.add_argument("--active", action="store_true",
-                        help="find the minimum number of active S-boxes per round")
-    parser.add_argument("--weight", action="store_true",
-                        help="find the minimum differential trail weight per round")
-    parser.add_argument("--trail", action="store_true",
-                        help="recover and print an optimal differential trail per round")
-    parser.add_argument("--seq", action="store_true",
-                        help="sequential mode: use weight[R-1] as lower bound for weight[R] (only 1 worker used; "
-                             "requires --weight or --trail)")
-    parser.add_argument("--cached", action="store_true",
-                        help="parallel mode: use cached weight[R-1] as lower bound for weight[R] "
-                             "(multiple workers used; requires --weight or --trail)")
-    parser.add_argument("--workers", type=int, default=None,
-                        help="number of parallel worker processes (default: cpu_count / 3)")
-    parser.add_argument("--solver", choices=list(SOLVERS), default="kissat",
-                        help="SAT solver backend (default: kissat)")
-    parser.add_argument("--benchmark", metavar="FILE", nargs="?", const=str(_DEFAULT_BENCHMARK),
-                        help="display saved benchmark results (default: benchmark.json)")
+    parser.add_argument("--active", action="store_true", help="find the minimum number of active S-boxes per round")
+    parser.add_argument("--weight", action="store_true", help="find the minimum differential trail weight per round")
+    parser.add_argument(
+        "--trail", action="store_true", help="recover and print an optimal differential trail per round"
+    )
+    parser.add_argument(
+        "--seq",
+        action="store_true",
+        help="sequential mode: use weight[R-1] as lower bound for weight[R] (only 1 worker used; "
+        "requires --weight or --trail)",
+    )
+    parser.add_argument(
+        "--cached",
+        action="store_true",
+        help="parallel mode: use cached weight[R-1] as lower bound for weight[R] "
+        "(multiple workers used; requires --weight or --trail)",
+    )
+    parser.add_argument(
+        "--workers", type=int, default=None, help="number of parallel worker processes (default: cpu_count / 3)"
+    )
+    parser.add_argument(
+        "--solver", choices=list(SOLVERS), default="kissat", help="SAT solver backend (default: kissat)"
+    )
+    parser.add_argument(
+        "--benchmark",
+        metavar="FILE",
+        nargs="?",
+        const=str(_DEFAULT_BENCHMARK),
+        help="display saved benchmark results (default: benchmark.json)",
+    )
     args = parser.parse_args()
 
     if args.benchmark is not None:
@@ -146,19 +158,25 @@ def main():
 
     stop_timer = threading.Event()
     if _IS_TTY:
+
         def _timer():
             while not stop_timer.wait(1.0):
                 table._redraw()
+
         threading.Thread(target=_timer, daemon=True).start()
 
     stop_progress = threading.Event()
+
     def _progress_reader():
         while not stop_progress.is_set():
             try:
                 r, w = pq.get(timeout=0.1)
                 table.set_testing(r, w)
-            except Exception:
+            except queue.Empty:
                 pass
+            except (OSError, ValueError, EOFError):
+                break  # queue closed during shutdown
+
     threading.Thread(target=_progress_reader, daemon=True).start()
 
     if args.seq and (args.weight or args.trail):
@@ -167,16 +185,16 @@ def main():
             table.mark_start(r)
             t0 = time.time()
             a_val = find_min_active_sbox(r, solver=args.solver) if args.active else None
-            ret = find_min_trail_weight(r, W_min=prev_weight, solver=args.solver,
-                                        return_trail=args.trail, progress_queue=pq)
+            ret = find_min_trail_weight(
+                r, W_min=prev_weight, solver=args.solver, return_trail=args.trail, progress_queue=pq
+            )
             if args.trail:
                 w_val, trail = ret
                 trail_res[r] = trail
             else:
                 w_val = ret
             prev_weight = w_val
-            table.update(r, active=a_val, weight=w_val,
-                         trail_done=r in trail_res, elapsed=time.time() - t0)
+            table.update(r, active=a_val, weight=w_val, trail_done=r in trail_res, elapsed=time.time() - t0)
 
     elif args.cached and (args.weight or args.trail):
         cache = {}
@@ -204,8 +222,7 @@ def main():
                             cache[r] = w
                         if trail is not None:
                             trail_res[r] = trail
-                        table.update(r, active=a, weight=w,
-                                     trail_done=trail is not None, elapsed=elapsed)
+                        table.update(r, active=a, weight=w, trail_done=trail is not None, elapsed=elapsed)
                         if pending:
                             _submit(pending.pop(0))
                         break

@@ -81,8 +81,7 @@ class LiveTable:
 
             row = [f"{r:>3}"]
             if self.want_active:
-                row += [f"{a:>10}" if a is not None else f"{P:>10}",
-                        f"{2*a:>8}" if a is not None else f"{'':>8}"]
+                row += [f"{a:>10}" if a is not None else f"{P:>10}", f"{2 * a:>8}" if a is not None else f"{'':>8}"]
             if self.want_weight:
                 if w is not None:
                     row += [f"{w:>10}"]
@@ -92,7 +91,7 @@ class LiveTable:
                     row += [f"{P:>10}"]
             if self.want_active and self.want_weight:
                 if a is not None and w is not None:
-                    row += [f"{w - 2*a:>4}"]
+                    row += [f"{w - 2 * a:>4}"]
                 else:
                     row += [f"{'':>4}"]
             if self.want_trail:
@@ -156,9 +155,7 @@ def print_benchmark(data: dict):
         print(solver_row)
         print(header)
         print("-" * len(header))
-        all_rounds = sorted(
-            {int(r) for k in active_solvers for r in data[k]}, key=int
-        )
+        all_rounds = sorted({int(r) for k in active_solvers for r in data[k]}, key=int)
         for r in all_rounds:
             row = [f"{r:>3}"]
             for k in active_solvers:
@@ -172,8 +169,8 @@ def print_benchmark(data: dict):
 
     weight_solvers = [
         ("min_weight_kissat_seq", "kissat-seq"),
-        ("min_weight_kissat",      "kissat"),
-        ("min_weight_cadical",     "cadical"),
+        ("min_weight_kissat", "kissat"),
+        ("min_weight_cadical", "cadical"),
     ]
     weight_solvers = [(k, label) for k, label in weight_solvers if k in data]
     if weight_solvers:
@@ -189,9 +186,7 @@ def print_benchmark(data: dict):
         print(solver_row)
         print(header)
         print("-" * len(header))
-        all_rounds = sorted(
-            {int(r) for k, _ in weight_solvers for r in data[k]}, key=int
-        )
+        all_rounds = sorted({int(r) for k, _ in weight_solvers for r in data[k]}, key=int)
         for r in all_rounds:
             row = [f"{r:>3}"]
             for k, _ in weight_solvers:
