@@ -9,7 +9,7 @@ It doubles as a small controlled comparison: three solver configurations (Kissat
 sequential lower bound) run on the same instances, every minimum is checked against published values, and the
 limitations of the measurements are listed [below](#limitations).
 
-Originally a course project (EPITA, Constraint Programming, 2026). Slides (in French): [slides.pdf](slides.pdf).
+Originally a course project (EPITA, Constraint Programming, 2026), developed between April and May 2026; tests, English documentation and a licence were added in October 2026. Slides (in French): [slides.pdf](slides.pdf).
 The analysis notebook ([notebook.ipynb](notebook.ipynb)) is written in English.
 
 ![Minimum trail weight and solve times](images/benchmark.png)
